@@ -10,7 +10,7 @@ permissions:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +53,21 @@ jobs:
           git -C out/sources/champions-calc rev-parse HEAD > out/data/champions-calc.commit
           git -C out/sources/pokemon-showdown rev-parse HEAD > out/data/pokemon-showdown.commit
           git -C out/sources/pokecounter rev-parse HEAD > out/data/pokecounter.commit
-          find out -type f -printf '%p\t%s bytes\n' | sort > out/manifest.txt
+
+      - name: Build the exact Champions simulator and run smoke test
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd out/sources/pokemon-showdown
+          npm ci --no-audit --no-fund
+          npm run build
+          cd ../../..
+          node scripts/smoke_calc.cjs | tee out/smoke_calc.log
+          grep -q '"targetHP":185' out/smoke_calc.log
+
+      - name: Final manifest
+        shell: bash
+        run: find out -type f -printf '%p\t%s bytes\n' | sort > out/manifest.txt
 
       - name: Upload collected data
         uses: actions/upload-artifact@v4
