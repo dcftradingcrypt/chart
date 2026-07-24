@@ -1,16 +1,56 @@
-name: scratch
+name: pokemon-audit-data
+
 on:
-  push:
+  pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
-  build:
+  collect:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Create artifact
+      - uses: actions/checkout@v4
+
+      - name: Collect current ranking pages
+        shell: bash
         run: |
-          mkdir -p out
-          echo hello > out/hello.txt
-      - uses: actions/upload-artifact@v4
+          set -euxo pipefail
+          mkdir -p out/opgg out/sources
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
+          for url in \
+            'https://op.gg/ja/pokemon-champions/tier' \
+            'https://op.gg/pokemon-champions/tier' \
+            'https://op.gg/ja/pokemon-champions' \
+            'https://op.gg/pokemon-champions'; do
+            name=$(echo "$url" | sed 's#https://##; s#[/?=&]#_#g')
+            curl -L --compressed --retry 3 --connect-timeout 20 --max-time 90 \
+              -A "$UA" -D "out/opgg/${name}.headers" "$url" -o "out/opgg/${name}.html" || true
+          done
+
+      - name: Collect calculator and legal-move data
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone --depth 1 https://github.com/darkstormgames/champions-calc.git out/sources/champions-calc
+          git clone --depth 1 https://github.com/smogon/pokemon-showdown.git out/sources/pokemon-showdown
+          git clone --depth 1 https://github.com/EricTron-FR/PokeCounter.app.git out/sources/pokecounter
+          mkdir -p out/data
+          cp out/sources/champions-calc/.data/*.csv out/data/
+          cp out/sources/pokemon-showdown/data/mods/champions/*.ts out/data/
+          cp out/sources/pokemon-showdown/data/moves.ts out/data/showdown-moves.ts
+          cp out/sources/pokemon-showdown/data/pokedex.ts out/data/showdown-pokedex.ts
+          cp out/sources/pokecounter/src/data/pokemon.json out/data/pokemon.json
+          git -C out/sources/champions-calc rev-parse HEAD > out/data/champions-calc.commit
+          git -C out/sources/pokemon-showdown rev-parse HEAD > out/data/pokemon-showdown.commit
+          git -C out/sources/pokecounter rev-parse HEAD > out/data/pokecounter.commit
+          find out -type f -printf '%p\t%s bytes\n' | sort > out/manifest.txt
+
+      - name: Upload collected data
+        uses: actions/upload-artifact@v4
         with:
-          name: scratch-output
+          name: pokemon-audit-inputs
           path: out
+          retention-days: 7
