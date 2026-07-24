@@ -1,0 +1,16 @@
+name: scratch
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create artifact
+        run: |
+          mkdir -p out
+          echo hello > out/hello.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scratch-output
+          path: out
