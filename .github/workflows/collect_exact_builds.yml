@@ -1,0 +1,41 @@
+name: pokemon-exact-builds
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch OP.GG exact-build pages
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
+          for spec in \
+            'sample-builds|https://op.gg/ja/pokemon-champions/sample-builds' \
+            'replica-teams|https://op.gg/ja/pokemon-champions/replica-teams'; do
+            name=${spec%%|*}
+            url=${spec#*|}
+            curl -L --compressed --retry 3 --connect-timeout 20 --max-time 120 \
+              -A "$UA" -H 'Accept-Language: ja,en;q=0.8' \
+              -D "out/${name}.headers" "$url" -o "out/${name}.html"
+            test $(wc -c < "out/${name}.html") -gt 100000
+          done
+          date -u +%FT%TZ > out/fetched_at_utc.txt
+          sha256sum out/*.html > out/SHA256SUMS.txt
+
+      - name: Upload exact-build source pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-exact-build-pages
+          path: out
+          retention-days: 7
