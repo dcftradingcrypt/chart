@@ -30,12 +30,13 @@ jobs:
               -A "$UA" -D "out/opgg/${name}.headers" "$url" -o "out/opgg/${name}.html" || true
           done
 
-      - name: Collect the current top 100 detail pages
+      - name: Collect and parse the current top 100 detail pages
         shell: bash
         run: |
           set -euxo pipefail
           python -m pip install --disable-pip-version-check requests beautifulsoup4 lxml
           python scripts/collect_opgg.py
+          python scripts/parse_usage.py
 
       - name: Collect calculator and legal-move data
         shell: bash
