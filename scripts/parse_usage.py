@@ -26,7 +26,7 @@ def parse_spread(value: str) -> dict[str, int]:
 
 def enrich_entries(entries, lookup_map):
     result = []
-    for entry in entries:
+    for entry in entries or []:
         lookup_entry = lookup_map.get(entry["id"], {})
         result.append({**entry, **{k: v for k, v in lookup_entry.items() if k != "id"}})
     return result
@@ -48,13 +48,13 @@ def main() -> None:
         }
         nature_lookup = {entry["id"]: entry for entry in lookup["natures"]}
 
-        moves = enrich_entries(detail.get("moves", []), lookup_maps["moves"])
-        win_moves = enrich_entries(detail.get("win", {}).get("moves", []), lookup_maps["moves"])
-        lose_moves = enrich_entries(detail.get("lose", {}).get("moves", []), lookup_maps["moves"])
-        abilities = enrich_entries(detail.get("abilities", []), lookup_maps["abilities"])
+        moves = enrich_entries(detail.get("moves"), lookup_maps["moves"])
+        win_moves = enrich_entries((detail.get("win") or {}).get("moves"), lookup_maps["moves"])
+        lose_moves = enrich_entries((detail.get("lose") or {}).get("moves"), lookup_maps["moves"])
+        abilities = enrich_entries(detail.get("abilities"), lookup_maps["abilities"])
 
         items = []
-        for entry in detail.get("items", []):
+        for entry in detail.get("items") or []:
             lookup_entry = lookup_maps["items"].get(entry["id"], {})
             items.append({
                 **entry,
@@ -63,7 +63,7 @@ def main() -> None:
             })
 
         natures = []
-        for entry in detail.get("natures", []):
+        for entry in detail.get("natures") or []:
             lookup_id = entry["id"] + 1
             lookup_entry = nature_lookup.get(lookup_id, {})
             natures.append({
@@ -73,7 +73,7 @@ def main() -> None:
             })
 
         training = []
-        for entry in detail.get("training", []):
+        for entry in detail.get("training") or []:
             training.append({
                 **entry,
                 "points": parse_spread(entry["spread"]),
@@ -126,7 +126,7 @@ def main() -> None:
                     "updated_jst": updated_jst,
                 })
 
-        for position, entry in enumerate(detail.get("mega", {}).get("use", []), start=1):
+        for position, entry in enumerate((detail.get("mega") or {}).get("use", []), start=1):
             long_rows.append({
                 "rank": rank,
                 "slug": pokemon["key"],
