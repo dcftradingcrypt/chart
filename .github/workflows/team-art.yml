@@ -1,0 +1,40 @@
+name: pokemon-team-art
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download team artwork
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out/team-art
+          declare -A IDS=(
+            [garchomp]=445
+            [mimikyu]=778
+            [charizard]=6
+            [bellibolt]=939
+            [meowscarada]=908
+            [delphox]=655
+          )
+          for name in "${!IDS[@]}"; do
+            id="${IDS[$name]}"
+            curl -L --fail --retry 3 --connect-timeout 20 --max-time 90 \
+              "https://s-stats-platform-cdn.op.gg/pokemon/images/pokemon/${id}.png?image=q_auto:good,f_png,w_700&v=1784906128" \
+              -o "out/team-art/${name}.png"
+            file "out/team-art/${name}.png"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-team-art
+          path: out/team-art
+          retention-days: 7

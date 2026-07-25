@@ -1,0 +1,52 @@
+name: pokemon-exact-builds
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch all OP.GG exact-build pages
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out/sample-builds out/replica-teams
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
+
+          for page in $(seq 1 10); do
+            url="https://op.gg/ja/pokemon-champions/sample-builds?battleFormat=SINGLE&page=${page}"
+            curl -L --compressed --retry 3 --connect-timeout 20 --max-time 120 \
+              -A "$UA" -H 'Accept-Language: ja,en;q=0.8' \
+              -D "out/sample-builds/page-${page}.headers" "$url" \
+              -o "out/sample-builds/page-${page}.html"
+            test $(wc -c < "out/sample-builds/page-${page}.html") -gt 100000
+            sleep 0.2
+          done
+
+          for page in $(seq 1 3); do
+            url="https://op.gg/ja/pokemon-champions/replica-teams?battleFormat=SINGLE&page=${page}"
+            curl -L --compressed --retry 3 --connect-timeout 20 --max-time 120 \
+              -A "$UA" -H 'Accept-Language: ja,en;q=0.8' \
+              -D "out/replica-teams/page-${page}.headers" "$url" \
+              -o "out/replica-teams/page-${page}.html"
+            test $(wc -c < "out/replica-teams/page-${page}.html") -gt 100000
+            sleep 0.2
+          done
+
+          date -u +%FT%TZ > out/fetched_at_utc.txt
+          find out -name '*.html' -print0 | sort -z | xargs -0 sha256sum > out/SHA256SUMS.txt
+
+      - name: Upload exact-build source pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-exact-build-pages-all
+          path: out
+          retention-days: 7
