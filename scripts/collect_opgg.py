@@ -4,6 +4,7 @@ import csv
 import json
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -16,8 +17,18 @@ SOURCE_URL = "https://op.gg/ja/pokemon-champions/tier"
 DETAIL_URL = "https://op.gg/ja/pokemon-champions/pokedex/{slug}"
 
 
+def parse_snapshot_time(soup: BeautifulSoup) -> str:
+    text = soup.get_text(" ", strip=True)
+    match = re.search(r"更新日\s*(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2}):(\d{2})", text)
+    if not match:
+        raise RuntimeError("Could not locate OP.GG update timestamp")
+    year, month, day, hour, minute = map(int, match.groups())
+    return datetime(year, month, day, hour, minute).strftime("%Y-%m-%d %H:%M JST")
+
+
 def parse_top100() -> list[dict[str, object]]:
     soup = BeautifulSoup(TIER_HTML.read_text(encoding="utf-8", errors="ignore"), "lxml")
+    updated_jst = parse_snapshot_time(soup)
     by_rank: dict[int, dict[str, object]] = {}
     for anchor in soup.select('a[href^="/ja/pokemon-champions/pokedex/"]'):
         href = anchor.get("href", "")
@@ -41,12 +52,22 @@ def parse_top100() -> list[dict[str, object]]:
             "types_ja": types,
             "season": "M-4",
             "format": "single",
-            "updated_jst": "2026-07-25 00:30",
+            "updated_jst": updated_jst,
             "source_url": SOURCE_URL,
         }
     result = [by_rank[r] for r in sorted(by_rank)]
     if len(result) != 100:
         raise RuntimeError(f"Expected 100 ranked Pokemon, found {len(result)}")
+    (ROOT / "snapshot_meta.json").write_text(
+        json.dumps({
+            "season": "M-4",
+            "format": "single",
+            "updated_jst": updated_jst,
+            "source_url": SOURCE_URL,
+            "pokemon_count": len(result),
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     return result
 
 
