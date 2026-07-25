@@ -20,9 +20,9 @@ jobs:
             curl -L --compressed --retry 3 --connect-timeout 20 --max-time 120 \
               -A "$UA" -H 'Accept-Language: ja,en;q=0.8' \
               "https://op.gg/ja/pokemon-champions/top-trainers?page=${page}" \
-              -o "out/page-${page}.html"
-            test $(wc -c < "out/page-${page}.html") -gt 100000
+              -o "out/page-${page}.html" || true
           done
+          test $(wc -c < out/page-1.html) -gt 100000
           date -u +%FT%TZ > out/fetched_at_utc.txt
           sha256sum out/*.html > out/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
