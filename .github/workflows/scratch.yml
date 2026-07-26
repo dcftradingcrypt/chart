@@ -16,27 +16,58 @@ jobs:
       - name: Fetch exact calculator and current battle data
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p out
-          npm pack '@22mah22/calc@0.11.0-champions.0' --pack-destination out
-          curl --fail --location --retry 4 --retry-all-errors \
-            'https://championsbattledata.com/pokemon_champions_assets/battle_data.zip' \
-            --output out/battle_data.zip
-          curl --fail --location --retry 4 --retry-all-errors \
-            'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/pokemon.json' \
-            --output out/pokecounter_pokemon.json
-          curl --fail --location --retry 4 --retry-all-errors \
-            'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/moves.json' \
-            --output out/pokecounter_moves.json
-          curl --fail --location --retry 4 --retry-all-errors \
-            'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/common-sets.json' \
-            --output out/pokecounter_common_sets.json
-          curl --fail --location --retry 4 --retry-all-errors \
-            'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/abilities.json' \
-            --output out/pokecounter_abilities.json
-          sha256sum out/* | tee out/SHA256SUMS.txt
+          : > out/FETCH_STATUS.txt
+
+          run_and_record() {
+            local label="$1"
+            shift
+            echo "=== ${label} ===" | tee -a out/FETCH_STATUS.txt
+            if "$@"; then
+              echo "${label}=PASS" | tee -a out/FETCH_STATUS.txt
+            else
+              rc=$?
+              echo "${label}=FAIL:${rc}" | tee -a out/FETCH_STATUS.txt
+            fi
+          }
+
+          run_and_record npm_calc \
+            npm pack '@22mah22/calc@0.11.0-champions.0' --pack-destination out
+          run_and_record battle_data_primary \
+            curl --fail --location --retry 2 --retry-all-errors \
+              'https://championsbattledata.com/pokemon_champions_assets/battle_data.zip' \
+              --output out/battle_data.zip
+          if [ ! -s out/battle_data.zip ]; then
+            rm -f out/battle_data.zip
+            run_and_record battle_data_github \
+              curl --fail --location --retry 2 --retry-all-errors \
+                'https://raw.githubusercontent.com/Gheist23/pokemonbattledata/main/pokemon_champions_assets/battle_data.zip' \
+                --output out/battle_data.zip
+          fi
+          run_and_record pokecounter_pokemon \
+            curl --fail --location --retry 2 --retry-all-errors \
+              'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/pokemon.json' \
+              --output out/pokecounter_pokemon.json
+          run_and_record pokecounter_moves \
+            curl --fail --location --retry 2 --retry-all-errors \
+              'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/moves.json' \
+              --output out/pokecounter_moves.json
+          run_and_record pokecounter_common_sets \
+            curl --fail --location --retry 2 --retry-all-errors \
+              'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/common-sets.json' \
+              --output out/pokecounter_common_sets.json
+          run_and_record pokecounter_abilities \
+            curl --fail --location --retry 2 --retry-all-errors \
+              'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/abilities.json' \
+              --output out/pokecounter_abilities.json
+
+          find out -type f -size 0 -delete
+          (cd out && sha256sum -- * > SHA256SUMS.txt)
           ls -lh out
+          test "$(find out -maxdepth 1 -type f | wc -l)" -ge 3
       - name: Upload dependency snapshot
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pokemon-audit-deps
