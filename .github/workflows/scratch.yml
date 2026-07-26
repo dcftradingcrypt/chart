@@ -1,4 +1,4 @@
-name: pokemon-audit-deps
+name: pokemon-audit-sources
 on:
   push:
     branches: [main]
@@ -8,69 +8,30 @@ on:
 permissions:
   contents: write
 jobs:
-  fetch-dependencies:
+  fetch-sources:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch exact calculator and current battle data
+      - name: Fetch source snapshots
         shell: bash
         run: |
-          set -uo pipefail
-          mkdir -p out
-          : > out/FETCH_STATUS.txt
-
-          run_and_record() {
-            local label="$1"
-            shift
-            echo "=== ${label} ===" | tee -a out/FETCH_STATUS.txt
-            if "$@"; then
-              echo "${label}=PASS" | tee -a out/FETCH_STATUS.txt
-            else
-              rc=$?
-              echo "${label}=FAIL:${rc}" | tee -a out/FETCH_STATUS.txt
-            fi
-          }
-
-          run_and_record npm_calc \
-            npm pack '@22mah22/calc@0.11.0-champions.0' --pack-destination out
-          run_and_record battle_data_primary \
-            curl --fail --location --retry 2 --retry-all-errors \
-              'https://championsbattledata.com/pokemon_champions_assets/battle_data.zip' \
-              --output out/battle_data.zip
-          if [ ! -s out/battle_data.zip ]; then
-            rm -f out/battle_data.zip
-            run_and_record battle_data_github \
-              curl --fail --location --retry 2 --retry-all-errors \
-                'https://raw.githubusercontent.com/Gheist23/pokemonbattledata/main/pokemon_champions_assets/battle_data.zip' \
-                --output out/battle_data.zip
-          fi
-          run_and_record pokecounter_pokemon \
-            curl --fail --location --retry 2 --retry-all-errors \
-              'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/pokemon.json' \
-              --output out/pokecounter_pokemon.json
-          run_and_record pokecounter_moves \
-            curl --fail --location --retry 2 --retry-all-errors \
-              'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/moves.json' \
-              --output out/pokecounter_moves.json
-          run_and_record pokecounter_common_sets \
-            curl --fail --location --retry 2 --retry-all-errors \
-              'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/common-sets.json' \
-              --output out/pokecounter_common_sets.json
-          run_and_record pokecounter_abilities \
-            curl --fail --location --retry 2 --retry-all-errors \
-              'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/abilities.json' \
-              --output out/pokecounter_abilities.json
-
-          find out -type f -size 0 -delete
-          (cd out && sha256sum -- * > SHA256SUMS.txt)
+          set -euo pipefail
+          mkdir -p out work
+          git clone --depth 1 https://github.com/22mah22/damage-calc.git work/damage-calc
+          git clone --depth 1 https://github.com/Gheist23/pokemonbattledata.git work/pokemonbattledata
+          git clone --depth 1 https://github.com/EricTron-FR/PokeCounter.app.git work/PokeCounter.app
+          for d in damage-calc pokemonbattledata PokeCounter.app; do
+            git -C "work/$d" rev-parse HEAD > "out/${d}.commit.txt"
+            rm -rf "work/$d/.git"
+            tar -C work -czf "out/${d}.tar.gz" "$d"
+          done
+          sha256sum out/* > out/SHA256SUMS.txt
           ls -lh out
-          test "$(find out -maxdepth 1 -type f | wc -l)" -ge 3
-      - name: Upload dependency snapshot
-        if: always()
+      - name: Upload source snapshot
         uses: actions/upload-artifact@v4
         with:
-          name: pokemon-audit-deps
+          name: pokemon-audit-sources
           path: out
           if-no-files-found: error
           retention-days: 7
@@ -86,11 +47,11 @@ jobs:
             "run_attempt": "${GITHUB_RUN_ATTEMPT}",
             "head_sha": "${GITHUB_SHA}",
             "job_status": "${{ job.status }}",
-            "artifact_name": "pokemon-audit-deps"
+            "artifact_name": "pokemon-audit-sources"
           }
           JSON
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .scratch/pokemon_audit_run.json
-          git commit -m 'Record Pokémon dependency artifact run [skip ci]' || exit 0
+          git commit -m 'Record Pokémon source artifact run [skip ci]' || exit 0
           git push
