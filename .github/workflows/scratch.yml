@@ -1,16 +1,42 @@
-name: scratch
+name: pokemon-audit-deps
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  build:
+  fetch-dependencies:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Create artifact
+      - name: Fetch exact calculator and current battle data
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p out
-          echo hello > out/hello.txt
-      - uses: actions/upload-artifact@v4
+          npm pack '@22mah22/calc@0.11.0-champions.0' --pack-destination out
+          curl --fail --location --retry 4 --retry-all-errors \
+            'https://championsbattledata.com/pokemon_champions_assets/battle_data.zip' \
+            --output out/battle_data.zip
+          curl --fail --location --retry 4 --retry-all-errors \
+            'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/pokemon.json' \
+            --output out/pokecounter_pokemon.json
+          curl --fail --location --retry 4 --retry-all-errors \
+            'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/moves.json' \
+            --output out/pokecounter_moves.json
+          curl --fail --location --retry 4 --retry-all-errors \
+            'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/common-sets.json' \
+            --output out/pokecounter_common_sets.json
+          curl --fail --location --retry 4 --retry-all-errors \
+            'https://raw.githubusercontent.com/EricTron-FR/PokeCounter.app/main/src/data/abilities.json' \
+            --output out/pokecounter_abilities.json
+          sha256sum out/* | tee out/SHA256SUMS.txt
+          ls -lh out
+      - name: Upload dependency snapshot
+        uses: actions/upload-artifact@v4
         with:
-          name: scratch-output
+          name: pokemon-audit-deps
           path: out
+          if-no-files-found: error
+          retention-days: 7
