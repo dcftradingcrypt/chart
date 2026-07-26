@@ -2,14 +2,17 @@ name: pokemon-audit-deps
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '.scratch/**'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   fetch-dependencies:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v4
       - name: Fetch exact calculator and current battle data
         shell: bash
         run: |
@@ -40,3 +43,23 @@ jobs:
           path: out
           if-no-files-found: error
           retention-days: 7
+      - name: Publish run locator
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .scratch
+          cat > .scratch/pokemon_audit_run.json <<JSON
+          {
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "head_sha": "${GITHUB_SHA}",
+            "job_status": "${{ job.status }}",
+            "artifact_name": "pokemon-audit-deps"
+          }
+          JSON
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .scratch/pokemon_audit_run.json
+          git commit -m 'Record Pokémon dependency artifact run [skip ci]' || exit 0
+          git push
