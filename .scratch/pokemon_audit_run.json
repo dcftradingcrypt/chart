@@ -1,0 +1,7 @@
+{
+  "run_id": "30209238121",
+  "run_attempt": "1",
+  "head_sha": "b205669f8529f3fac6daa628f99d4be905860d1d",
+  "job_status": "failure",
+  "artifact_name": "pokemon-audit-deps"
+}
