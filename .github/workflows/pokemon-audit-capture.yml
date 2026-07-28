@@ -1,0 +1,60 @@
+name: pokemon-audit-capture
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture current OP.GG source pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
+          curl --fail --location --compressed --retry 4 --retry-all-errors \
+            -A "$UA" -D out/tier.headers \
+            'https://op.gg/ja/pokemon-champions/tier' -o out/tier.html
+          curl --fail --location --compressed --retry 4 --retry-all-errors \
+            -A "$UA" -D out/garchomp.headers \
+            'https://op.gg/ja/pokemon-champions/pokedex/garchomp' -o out/garchomp.html
+          python - <<'PY'
+          from pathlib import Path
+          import json, re, hashlib
+          out=Path('out')
+          report={}
+          for stem in ('tier','garchomp'):
+              text=(out/f'{stem}.html').read_text('utf-8',errors='replace')
+              report[stem]={
+                  'bytes':len(text.encode()),
+                  'sha256':hashlib.sha256(text.encode()).hexdigest(),
+                  'has_next_data':'__NEXT_DATA__' in text,
+                  'has_next_f':'self.__next_f.push' in text,
+                  'has_garchomp_99_3':'99.3' in text,
+                  'has_updated_japanese':'更新日' in text,
+                  'script_srcs':re.findall(r'<script[^>]+src=["\']([^"\']+)',text)[:30],
+                  'api_urls':sorted(set(re.findall(r'https?://[^"\'<> ]+',text)))[:100],
+              }
+              # Save readable fragments around likely data markers.
+              fragments=[]
+              for pat in ('更新日','99.3','__NEXT_DATA__','pokemon-champions'):
+                  pos=text.find(pat)
+                  if pos>=0:
+                      fragments.append({'pattern':pat,'fragment':text[max(0,pos-500):pos+1500]})
+              (out/f'{stem}.fragments.json').write_text(json.dumps(fragments,ensure_ascii=False,indent=2))
+          (out/'capture_report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+          sha256sum out/* > out/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-audit-capture
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
