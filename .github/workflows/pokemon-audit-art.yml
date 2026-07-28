@@ -1,0 +1,54 @@
+name: pokemon-audit-art
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  art:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download official artwork references
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/pokemon-audit-art
+          mkdir -p "$OUT"
+          base='https://s-stats-platform-cdn.op.gg/pokemon/images/pokemon'
+          curl -fsSL --retry 5 "$base/1018.png" -o "$OUT/archaludon.png"
+          curl -fsSL --retry 5 "$base/450.png" -o "$OUT/hippowdon.png"
+          curl -fsSL --retry 5 "$base/10058.png" -o "$OUT/garchomp_mega.png"
+          curl -fsSL --retry 5 "$base/10293.png" -o "$OUT/delphox_mega.png"
+          curl -fsSL --retry 5 "$base/10281.png" -o "$OUT/dragonite_mega.png"
+          curl -fsSL --retry 5 "$base/658.png" -o "$OUT/greninja.png"
+          curl -fsSL --retry 5 "$base/445.png" -o "$OUT/garchomp_base.png"
+          curl -fsSL --retry 5 "$base/655.png" -o "$OUT/delphox_base.png"
+          curl -fsSL --retry 5 "$base/149.png" -o "$OUT/dragonite_base.png"
+          python - <<'PY'
+          from pathlib import Path
+          import json, hashlib, datetime
+          out=Path('/tmp/pokemon-audit-art')
+          names={
+            'archaludon.png':'ブリジュラス','hippowdon.png':'カバルドン',
+            'garchomp_mega.png':'メガガブリアス','delphox_mega.png':'メガマフォクシー',
+            'dragonite_mega.png':'メガカイリュー','greninja.png':'ゲッコウガ',
+            'garchomp_base.png':'ガブリアス','delphox_base.png':'マフォクシー','dragonite_base.png':'カイリュー',
+          }
+          ids={'archaludon.png':'1018','hippowdon.png':'450','garchomp_mega.png':'10058','delphox_mega.png':'10293','dragonite_mega.png':'10281','greninja.png':'658','garchomp_base.png':'445','delphox_base.png':'655','dragonite_base.png':'149'}
+          rows=[]
+          for p in sorted(out.glob('*.png')):
+              b=p.read_bytes()
+              rows.append({'display_name':names[p.name],'local_filename':p.name,'source_url':f"https://s-stats-platform-cdn.op.gg/pokemon/images/pokemon/{ids[p.name]}.png",'downloaded_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+          (out/'image_manifest.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+          sha256sum "$OUT"/* > "$OUT/SHA256SUMS.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-audit-art
+          path: /tmp/pokemon-audit-art/
+          if-no-files-found: error
+          retention-days: 1

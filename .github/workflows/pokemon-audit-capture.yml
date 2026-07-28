@@ -1,0 +1,72 @@
+name: pokemon-audit-capture
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install parser dependencies
+        run: python -m pip install --disable-pip-version-check requests beautifulsoup4 lxml
+      - name: Capture all top-100 pages in one OP.GG update cycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf out
+          mkdir -p out/failed
+          success=0
+          for attempt in 1 2 3 4 5 6; do
+            echo "formal capture attempt $attempt"
+            rm -rf out/current
+            set +e
+            python pokemon-audit/capture_opgg.py --out out/current --top 100 --workers 10 2>&1 | tee "out/attempt_${attempt}.log"
+            rc=${PIPESTATUS[0]}
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              success=1
+              break
+            fi
+            mkdir -p "out/failed/attempt_${attempt}"
+            cp -a out/current/. "out/failed/attempt_${attempt}/" 2>/dev/null || true
+            sleep 75
+          done
+          if [ "$success" -ne 1 ]; then
+            echo "No same-cycle top-100 capture completed" >&2
+            exit 2
+          fi
+          mv out/current out/formal_source
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, subprocess, datetime
+          root=Path('out/formal_source')
+          manifest={
+            'schema_version':1,
+            'captured_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'workflow_repository':'dcftradingcrypt/chart',
+            'workflow_head_sha':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+            'parser_path':'pokemon-audit/capture_opgg.py',
+            'parser_sha256':hashlib.sha256(Path('pokemon-audit/capture_opgg.py').read_bytes()).hexdigest(),
+            'source':'https://op.gg/ja/pokemon-champions/tier',
+          }
+          (root/'capture_manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          files=[]
+          for p in sorted(root.rglob('*')):
+            if p.is_file() and p.name!='SHA256SUMS.txt':
+              files.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root).as_posix()}")
+          (root/'SHA256SUMS.txt').write_text('\n'.join(files)+'\n',encoding='utf-8')
+          PY
+          cat out/formal_source/capture_validation.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pokemon-audit-formal-source
+          path: out/
+          if-no-files-found: error
+          retention-days: 1

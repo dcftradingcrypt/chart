@@ -1,0 +1,28 @@
+name: pokemon-audit-artifact-test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/pokemon-audit-artifact-test.yml'
+      - 'pokemon-audit/**'
+
+permissions:
+  contents: read
+
+jobs:
+  artifact-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create test artifact
+        run: |
+          mkdir -p out
+          printf 'pokemon audit artifact transport works\n' > out/hello.txt
+          sha256sum out/hello.txt > out/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-audit-artifact-test
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
