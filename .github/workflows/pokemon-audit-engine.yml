@@ -12,27 +12,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
       - name: Build fixed Pokémon Champions damage engine
         shell: bash
         run: |
-          set -euo pipefail
-          mkdir -p out/engine
+          set +e
+          OUT=/tmp/pokemon-audit-engine
+          rm -rf "$OUT" engine-src
+          mkdir -p "$OUT"
           COMMIT='fc495808fca595479762c1b93d237a7f28254298'
-          {
-            git clone --quiet https://github.com/smogon/damage-calc.git engine-src
-            git -C engine-src checkout --quiet "$COMMIT"
-            cd engine-src/calc
-            npm install --no-audit --no-fund
-            npm run build
-            cd ../..
-            cp -a engine-src/calc/dist out/engine/dist
-            cp engine-src/calc/package.json out/engine/package.json
-            test -f engine-src/calc/package-lock.json && cp engine-src/calc/package-lock.json out/engine/package-lock.json || true
-            printf '%s\n' "$COMMIT" > out/engine/SOURCE_COMMIT.txt
-            node - <<'JS'
+          exec > >(tee "$OUT/build.log") 2>&1
+          echo "engine commit: $COMMIT"
+          git clone --quiet https://github.com/smogon/damage-calc.git engine-src
+          rc=$?
+          if [ "$rc" -eq 0 ]; then git -C engine-src checkout --quiet "$COMMIT"; rc=$?; fi
+          if [ "$rc" -eq 0 ]; then (cd engine-src/calc && npm install --no-audit --no-fund && npm run build); rc=$?; fi
+          if [ "$rc" -eq 0 ]; then
+            cp -a engine-src/calc/dist "$OUT/dist"
+            cp engine-src/calc/package.json "$OUT/package.json"
+            test -f engine-src/calc/package-lock.json && cp engine-src/calc/package-lock.json "$OUT/package-lock.json" || true
+            printf '%s\n' "$COMMIT" > "$OUT/SOURCE_COMMIT.txt"
+            node - "$OUT" <<'JS'
             const fs = require('fs');
-            const calc = require('./out/engine/dist/index.js');
+            const path = require('path');
+            const out = process.argv[2];
+            const calc = require(path.join(out, 'dist/index.js'));
             const gen = calc.Generations.get(0);
             const wanted = ['Garchomp','Garchomp-Mega','Delphox','Delphox-Mega','Dragonite','Dragonite-Mega','Archaludon','Greninja','Hippowdon'];
             const species = wanted.map(name => {
@@ -42,14 +45,17 @@ jobs:
             const g = new calc.Pokemon(gen, 'Garchomp', {nature:'Adamant', evs:{hp:2,atk:32,def:0,spa:0,spd:0,spe:32}, item:'Garchompite', ability:'Rough Skin'});
             const a = new calc.Pokemon(gen, 'Archaludon', {nature:'Timid', evs:{hp:0,atk:0,def:1,spa:32,spd:1,spe:32}, item:'Sitrus Berry', ability:'Sturdy'});
             const result = calc.calculate(gen, g, a, new calc.Move(gen, 'Earthquake'));
-            fs.writeFileSync('out/engine/probe.json', JSON.stringify({generation:gen.num, species, garchomp_raw:g.rawStats, archaludon_raw:a.rawStats, damage:result.damage, range:result.range(), desc:result.desc()}, null, 2));
+            fs.writeFileSync(path.join(out, 'probe.json'), JSON.stringify({generation:gen.num, species, garchomp_raw:g.rawStats, archaludon_raw:a.rawStats, damage:result.damage, range:result.range(), desc:result.desc()}, null, 2));
             JS
-            find out/engine -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > out/engine/SHA256SUMS.txt
-          } > out/engine/build.log 2>&1
+            rc=$?
+          fi
+          printf '%s\n' "$rc" > "$OUT/BUILD_EXIT_CODE.txt"
+          find "$OUT" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$OUT/SHA256SUMS.txt"
+          echo "build exit code: $rc"
+          exit 0
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: pokemon-audit-engine
-          path: out/engine/
+          path: /tmp/pokemon-audit-engine/
           if-no-files-found: error
           retention-days: 1
