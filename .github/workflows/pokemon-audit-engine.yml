@@ -12,47 +12,43 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Build fixed Pokémon Champions damage engine
+      - name: Compile fixed Pokémon Champions damage engine
         shell: bash
         run: |
-          set +e
+          set -euo pipefail
           OUT=/tmp/pokemon-audit-engine
           rm -rf "$OUT" engine-src
           mkdir -p "$OUT"
           COMMIT='fc495808fca595479762c1b93d237a7f28254298'
-          exec > >(tee "$OUT/build.log") 2>&1
-          echo "engine commit: $COMMIT"
-          git clone --quiet https://github.com/smogon/damage-calc.git engine-src
-          rc=$?
-          if [ "$rc" -eq 0 ]; then git -C engine-src checkout --quiet "$COMMIT"; rc=$?; fi
-          if [ "$rc" -eq 0 ]; then (cd engine-src/calc && npm install --no-audit --no-fund && npm run build); rc=$?; fi
-          if [ "$rc" -eq 0 ]; then
-            cp -a engine-src/calc/dist "$OUT/dist"
-            cp engine-src/calc/package.json "$OUT/package.json"
-            test -f engine-src/calc/package-lock.json && cp engine-src/calc/package-lock.json "$OUT/package-lock.json" || true
-            printf '%s\n' "$COMMIT" > "$OUT/SOURCE_COMMIT.txt"
-            node - "$OUT" <<'JS'
-            const fs = require('fs');
-            const path = require('path');
-            const out = process.argv[2];
-            const calc = require(path.join(out, 'dist/index.js'));
-            const gen = calc.Generations.get(0);
-            const wanted = ['Garchomp','Garchomp-Mega','Delphox','Delphox-Mega','Dragonite','Dragonite-Mega','Archaludon','Greninja','Hippowdon'];
-            const species = wanted.map(name => {
-              const s = gen.species.get(calc.toID(name));
-              return s ? {name:s.name, baseStats:s.baseStats, types:s.types, abilities:s.abilities, weightkg:s.weightkg} : {name, missing:true};
-            });
-            const g = new calc.Pokemon(gen, 'Garchomp', {nature:'Adamant', evs:{hp:2,atk:32,def:0,spa:0,spd:0,spe:32}, item:'Garchompite', ability:'Rough Skin'});
-            const a = new calc.Pokemon(gen, 'Archaludon', {nature:'Timid', evs:{hp:0,atk:0,def:1,spa:32,spd:1,spe:32}, item:'Sitrus Berry', ability:'Sturdy'});
-            const result = calc.calculate(gen, g, a, new calc.Move(gen, 'Earthquake'));
-            fs.writeFileSync(path.join(out, 'probe.json'), JSON.stringify({generation:gen.num, species, garchomp_raw:g.rawStats, archaludon_raw:a.rawStats, damage:result.damage, range:result.range(), desc:result.desc()}, null, 2));
-            JS
-            rc=$?
-          fi
-          printf '%s\n' "$rc" > "$OUT/BUILD_EXIT_CODE.txt"
+          echo "engine commit: $COMMIT" | tee "$OUT/build.log"
+          git clone --quiet https://github.com/smogon/damage-calc.git engine-src 2>&1 | tee -a "$OUT/build.log"
+          git -C engine-src checkout --quiet "$COMMIT" 2>&1 | tee -a "$OUT/build.log"
+          (
+            cd engine-src/calc
+            npm install --ignore-scripts --no-audit --no-fund
+            npm run compile
+          ) 2>&1 | tee -a "$OUT/build.log"
+          cp -a engine-src/calc/dist "$OUT/dist"
+          cp engine-src/calc/package.json "$OUT/package.json"
+          test -f engine-src/calc/package-lock.json && cp engine-src/calc/package-lock.json "$OUT/package-lock.json" || true
+          printf '%s\n' "$COMMIT" > "$OUT/SOURCE_COMMIT.txt"
+          node - "$OUT" <<'JS'
+          const fs = require('fs');
+          const path = require('path');
+          const out = process.argv[2];
+          const calc = require(path.join(out, 'dist/index.js'));
+          const gen = calc.Generations.get(0);
+          const wanted = ['Garchomp','Garchomp-Mega','Delphox','Delphox-Mega','Dragonite','Dragonite-Mega','Archaludon','Greninja','Hippowdon'];
+          const species = wanted.map(name => {
+            const s = gen.species.get(calc.toID(name));
+            return s ? {name:s.name, baseStats:s.baseStats, types:s.types, abilities:s.abilities, weightkg:s.weightkg} : {name, missing:true};
+          });
+          const g = new calc.Pokemon(gen, 'Garchomp', {nature:'Adamant', evs:{hp:2,atk:32,def:0,spa:0,spd:0,spe:32}, item:'Garchompite', ability:'Rough Skin'});
+          const a = new calc.Pokemon(gen, 'Archaludon', {nature:'Timid', evs:{hp:0,atk:0,def:1,spa:32,spd:1,spe:32}, item:'Sitrus Berry', ability:'Sturdy'});
+          const result = calc.calculate(gen, g, a, new calc.Move(gen, 'Earthquake'));
+          fs.writeFileSync(path.join(out, 'probe.json'), JSON.stringify({generation:gen.num, species, garchomp_raw:g.rawStats, archaludon_raw:a.rawStats, damage:result.damage, range:result.range(), desc:result.desc()}, null, 2));
+          JS
           find "$OUT" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$OUT/SHA256SUMS.txt"
-          echo "build exit code: $rc"
-          exit 0
       - uses: actions/upload-artifact@v4
         with:
           name: pokemon-audit-engine
