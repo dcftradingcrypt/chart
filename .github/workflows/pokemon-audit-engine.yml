@@ -1,0 +1,51 @@
+name: pokemon-audit-engine
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build fixed Pokémon Champions damage engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMIT='fc495808fca595479762c1b93d237a7f28254298'
+          git clone --quiet https://github.com/smogon/damage-calc.git engine-src
+          git -C engine-src checkout --quiet "$COMMIT"
+          cd engine-src/calc
+          npm install --no-audit --no-fund
+          npm run build
+          cd ../..
+          mkdir -p out/engine
+          cp -a engine-src/calc/dist out/engine/dist
+          cp engine-src/calc/package.json out/engine/package.json
+          test -f engine-src/calc/package-lock.json && cp engine-src/calc/package-lock.json out/engine/package-lock.json || true
+          printf '%s\n' "$COMMIT" > out/engine/SOURCE_COMMIT.txt
+          node - <<'JS'
+          const fs = require('fs');
+          const calc = require('./out/engine/dist/index.js');
+          const gen = calc.Generations.get(0);
+          const names = [];
+          for (const [id, s] of gen.species) {
+            if (/Garchomp|Delphox|Dragonite|Archaludon|Greninja|Hippowdon/i.test(s.name)) names.push({id, name:s.name, baseStats:s.baseStats, types:s.types, abilities:s.abilities, weightkg:s.weightkg});
+          }
+          const g = new calc.Pokemon(gen, 'Garchomp', {nature:'Adamant', evs:{hp:2,atk:32,def:0,spa:0,spd:0,spe:32}, item:'Garchompite', ability:'Rough Skin'});
+          const a = new calc.Pokemon(gen, 'Archaludon', {nature:'Timid', evs:{hp:0,atk:0,def:1,spa:32,spd:1,spe:32}, item:'Sitrus Berry', ability:'Sturdy'});
+          const result = calc.calculate(gen, g, a, new calc.Move(gen, 'Earthquake'));
+          fs.writeFileSync('out/engine/probe.json', JSON.stringify({generation:gen.num, species:names, garchomp_raw:g.rawStats, archaludon_raw:a.rawStats, damage:result.damage, range:result.range(), desc:result.desc()}, null, 2));
+          JS
+          find out/engine -type f -print0 | sort -z | xargs -0 sha256sum > out/engine/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-audit-engine
+          path: out/engine/
+          if-no-files-found: error
+          retention-days: 1
