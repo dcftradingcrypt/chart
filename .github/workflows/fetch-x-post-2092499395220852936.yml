@@ -1,0 +1,125 @@
+name: Fetch X post 2092499395220852936
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/fetch-x-post-2092499395220852936.yml'
+      - 'x-post-fetch/**'
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch public post JSON and media
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/media
+
+          urls=(
+            'https://api.fxtwitter.com/0xvietnguyen/status/2092499395220852936'
+            'https://api.fxtwitter.com/i/status/2092499395220852936'
+          )
+
+          ok=0
+          n=0
+          for u in "${urls[@]}"; do
+            n=$((n+1))
+            if curl -L --fail --silent --show-error --max-time 45 "$u" -o "out/response_${n}.json"; then
+              if python -m json.tool "out/response_${n}.json" >/dev/null 2>&1; then
+                cp "out/response_${n}.json" out/post.json
+                printf '%s\n' "$u" > out/source_url.txt
+                ok=1
+                break
+              fi
+            fi
+          done
+          test "$ok" = 1
+
+          python - <<'PY'
+          import json, pathlib, re, urllib.request
+
+          root = pathlib.Path('out')
+          data = json.loads((root / 'post.json').read_text(encoding='utf-8'))
+          post = data.get('tweet') or data.get('status') or data
+
+          def walk(v, path=''):
+              if isinstance(v, dict):
+                  for k, x in v.items():
+                      yield from walk(x, f'{path}.{k}' if path else k)
+              elif isinstance(v, list):
+                  for i, x in enumerate(v):
+                      yield from walk(x, f'{path}[{i}]')
+              else:
+                  yield path, v
+
+          strings = [(p, v) for p, v in walk(post) if isinstance(v, str)]
+          text_candidates = [(p, v) for p, v in strings if p.lower().endswith(('text','raw_text.text','description'))]
+          urls = []
+          for p, v in strings:
+              for u in re.findall(r'https?://[^\s"<>]+', v):
+                  urls.append({'path': p, 'url': u.rstrip('),.;]')})
+          for p, v in strings:
+              if v.startswith('http://') or v.startswith('https://'):
+                  urls.append({'path': p, 'url': v})
+
+          unique = []
+          seen = set()
+          for row in urls:
+              u = row['url']
+              if u not in seen:
+                  seen.add(u)
+                  unique.append(row)
+
+          media = [r for r in unique if any(h in r['url'] for h in ('pbs.twimg.com','video.twimg.com','ton.twimg.com'))]
+          external = [r for r in unique if r not in media]
+
+          summary = {
+              'id': str(post.get('id') or post.get('tweet_id') or '2092499395220852936'),
+              'url': post.get('url'),
+              'author': post.get('author'),
+              'created_at': post.get('created_at') or post.get('created_timestamp'),
+              'text_candidates': text_candidates,
+              'media_urls': media,
+              'external_urls': external,
+              'top_level_keys': sorted(post.keys()) if isinstance(post, dict) else [],
+          }
+          (root / 'summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+
+          headers = {'User-Agent': 'Mozilla/5.0'}
+          downloaded = []
+          for i, row in enumerate(media, 1):
+              u = row['url']
+              # Prefer original-size X image where supported.
+              if 'pbs.twimg.com/media/' in u and '?' not in u:
+                  u = u + '?name=orig'
+              ext = pathlib.Path(urllib.parse.urlparse(u).path).suffix or '.bin'
+              dest = root / 'media' / f'{i:02d}{ext}'
+              try:
+                  req = urllib.request.Request(u, headers=headers)
+                  with urllib.request.urlopen(req, timeout=60) as resp:
+                      dest.write_bytes(resp.read())
+                  downloaded.append({'source': u, 'file': str(dest), 'bytes': dest.stat().st_size})
+              except Exception as e:
+                  downloaded.append({'source': u, 'error': repr(e)})
+          (root / 'media_manifest.json').write_text(json.dumps(downloaded, ensure_ascii=False, indent=2), encoding='utf-8')
+          PY
+
+          sha256sum out/post.json out/summary.json out/media_manifest.json > out/SHA256SUMS.txt
+
+      - name: Upload post evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: x-post-2092499395220852936
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 9
