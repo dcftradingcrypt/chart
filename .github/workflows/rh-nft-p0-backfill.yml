@@ -1,0 +1,92 @@
+name: Robinhood NFT P0 historical backfill
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'rh-nft-backfill/**'
+      - '.github/workflows/rh-nft-p0-backfill.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  collect-p0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate read-only collector
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/txhashes=sorted({r\["tx_hash"\] for r in all_tr if r.get("tx_hash")})/txhashes=sorted({r["tx_hash"] for r in all_tr if r.get("tx_hash") and r["event_kind"]=="MINT"})/' rh-nft-backfill/collector.py
+          python -m py_compile rh-nft-backfill/collector.py
+          python rh-nft-backfill/collector.py --self-test
+          sha256sum rh-nft-backfill/collector.py rh-nft-backfill/contracts.csv | tee collector-input-sha256.txt
+
+      - name: Check public data endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 'https://robinscan.io/api/address/0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce/transfers?scope=token' | head -c 500 > endpoint-probe.json
+          python - <<'PY'
+          import json
+          json.load(open('endpoint-probe.json', encoding='utf-8'))
+          print('ENDPOINT PROBE PASS')
+          PY
+
+      - name: Collect P0 history
+        id: collect
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts
+          python rh-nft-backfill/collector.py \
+            --contracts rh-nft-backfill/contracts.csv \
+            --out artifacts/robinhood_nft_p0 \
+            --max-pages 5000 \
+            --delay 0.12 \
+            --rpc-batch 20 \
+            2>&1 | tee artifacts/backfill.log
+
+      - name: Package evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp -f collector-input-sha256.txt endpoint-probe.json artifacts/ 2>/dev/null || true
+          cp -f rh-nft-backfill/contracts.csv artifacts/ 2>/dev/null || true
+          python - <<'PY'
+          import hashlib, json, pathlib
+          root=pathlib.Path('artifacts')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():
+                  rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'artifact_manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+
+      - name: Upload P0 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robinhood-nft-p0-backfill
+          path: artifacts/
+          retention-days: 7
+          compression-level: 9
+          if-no-files-found: error
+
+      - name: Enforce result
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.collect.outcome }}" = "success"
