@@ -1,0 +1,49 @@
+name: MintGo candidate metadata snapshot
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'nft-site-snapshots/paid_candidates.json'
+      - 'nft-site-snapshots/collect-mintgo-details.mjs'
+      - '.github/workflows/mintgo-candidate-details.yml'
+permissions:
+  contents: read
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Collect candidate metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund puppeteer-core@24.16.0
+          node nft-site-snapshots/collect-mintgo-details.mjs 2>&1 | tee detail-collector.log
+      - name: Build manifest
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out-details
+          cp detail-collector.log out-details/ 2>/dev/null || true
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('out-details');rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+      - name: Upload candidate metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mintgo-paid-candidate-details
+          path: out-details/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
