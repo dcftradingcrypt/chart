@@ -1,0 +1,50 @@
+name: Robinhood Chain paid-candidate shard 3 rescue
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'nft-site-snapshots/paid_candidates.json'
+      - 'nft-site-snapshots/collect_candidate_seadrop_shard.py'
+      - '.github/workflows/rhc-paid-candidate-shard3-rescue.yml'
+permissions:
+  contents: read
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate_index: [3,11,19,27,35,43,51]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify one candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "out-candidate-${{ matrix.candidate_index }}"
+          SHARD=${{ matrix.candidate_index }} SHARDS=56 OUT="out-candidate-${{ matrix.candidate_index }}" python nft-site-snapshots/collect_candidate_seadrop_shard.py 2>&1 | tee "out-candidate-${{ matrix.candidate_index }}/collector.log"
+      - name: Build manifest
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('out-candidate-${{ matrix.candidate_index }}');root.mkdir(exist_ok=True);rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+      - name: Upload candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-paid-candidate-index-${{ matrix.candidate_index }}
+          path: out-candidate-${{ matrix.candidate_index }}/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
