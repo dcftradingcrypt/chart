@@ -1,0 +1,29 @@
+name: AlphaGate live read-only endpoint probe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/alphagate-live-probe.yml'
+      - 'alphagate-probe/**'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python alphagate-probe/probe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alphagate-live-probe
+          path: out-alphagate-probe/
+          retention-days: 1
+          if-no-files-found: error
