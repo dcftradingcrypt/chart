@@ -45,7 +45,7 @@ jobs:
           test "$ok" = 1
 
           python - <<'PY'
-          import json, pathlib, re, urllib.request
+          import json, pathlib, re, urllib.parse, urllib.request
 
           root = pathlib.Path('out')
           data = json.loads((root / 'post.json').read_text(encoding='utf-8'))
@@ -98,7 +98,6 @@ jobs:
           downloaded = []
           for i, row in enumerate(media, 1):
               u = row['url']
-              # Prefer original-size X image where supported.
               if 'pbs.twimg.com/media/' in u and '?' not in u:
                   u = u + '?name=orig'
               ext = pathlib.Path(urllib.parse.urlparse(u).path).suffix or '.bin'
