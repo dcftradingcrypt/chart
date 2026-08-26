@@ -1,0 +1,32 @@
+name: Robinhood Chain proven NFT sale receipt probe
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'nft-site-snapshots/fetch_sale_receipt.py'
+      - '.github/workflows/rhc-sale-receipt-probe.yml'
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch canonical transaction and receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python nft-site-snapshots/fetch_sale_receipt.py | tee out-sale-receipt/collector.log
+      - name: Upload receipt evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-proven-sale-receipt
+          path: out-sale-receipt/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
