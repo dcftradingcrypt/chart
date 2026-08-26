@@ -1,0 +1,76 @@
+name: Stackers EIP-2309 and creation reconciliation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/stackers-eip2309-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch creation receipt and EIP-2309 logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          RPC='https://rpc.mainnet.chain.robinhood.com'
+          CONTRACT='0x8c646c7d3f9af3afd6cdccd3dc00a01bf2d1298d'
+          CREATE_TX='0xa8c93291acc19f458d8958a108cff1d353bf71d27e713ab704d5dad69d6e92da'
+          TOPIC='0xdeaa91b6123d068f5821d0fb0678463d1a8a6079fe8af5de3ce5e896dcf9133d'
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            -H 'content-type: application/json' \
+            --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionReceipt\",\"params\":[\"${CREATE_TX}\"]}" \
+            "$RPC" -o artifacts/creation_receipt.json
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            -H 'content-type: application/json' \
+            --data "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"eth_getLogs\",\"params\":[{\"fromBlock\":\"0x0\",\"toBlock\":\"latest\",\"address\":\"${CONTRACT}\",\"topics\":[\"${TOPIC}\"]}]}" \
+            "$RPC" -o artifacts/consecutive_transfer_logs.json
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            -H 'content-type: application/json' \
+            --data "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"eth_call\",\"params\":[{\"to\":\"${CONTRACT}\",\"data\":\"0x18160ddd\"},\"latest\"]}" \
+            "$RPC" -o artifacts/total_supply_call.json
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('artifacts')
+          receipt=json.loads((root/'creation_receipt.json').read_text())
+          logs=json.loads((root/'consecutive_transfer_logs.json').read_text())
+          supply=json.loads((root/'total_supply_call.json').read_text())
+          result=logs.get('result') or []
+          decoded=[]
+          for log in result:
+              topics=log.get('topics') or []
+              decoded.append({
+                  'transaction_hash':log.get('transactionHash'),
+                  'block_number':int(log['blockNumber'],16),
+                  'from_token_id':int(topics[1],16) if len(topics)>1 else None,
+                  'to_token_id':int(log.get('data','0x0'),16),
+                  'from_address':'0x'+topics[2][-40:] if len(topics)>2 else None,
+                  'to_address':'0x'+topics[3][-40:] if len(topics)>3 else None,
+              })
+          summary={
+              'creation_receipt_log_count':len((receipt.get('result') or {}).get('logs') or []),
+              'eip2309_log_count':len(result),
+              'decoded_eip2309':decoded,
+              'total_supply':int(supply['result'],16) if isinstance(supply.get('result'),str) else None,
+          }
+          (root/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
+          files=[]
+          for p in sorted(root.glob('*')):
+              if p.is_file():files.append({'path':p.name,'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':files},indent=2),encoding='utf-8')
+          print(json.dumps(summary,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stackers-eip2309-reconciliation
+          path: artifacts/
+          retention-days: 7
+          compression-level: 9
+          if-no-files-found: error
