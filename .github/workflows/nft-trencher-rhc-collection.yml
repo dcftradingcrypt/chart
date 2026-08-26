@@ -1,0 +1,58 @@
+name: NFT Trencher Robinhood Chain collection
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'nft-trencher-fetch/**'
+      - '.github/workflows/nft-trencher-rhc-collection.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Collect rendered page, network responses, and embedded data
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund puppeteer-core@24.16.0
+          node nft-trencher-fetch/collect.mjs | tee collector.log
+
+      - name: Package source evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          cp collector.log out/ 2>/dev/null || true
+          python - <<'PY'
+          import hashlib, json, pathlib
+          root=pathlib.Path('out')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():
+                  rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+
+      - name: Upload NFT Trencher evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nft-trencher-rhc-source
+          path: out/
+          retention-days: 2
+          compression-level: 9
+          if-no-files-found: error
