@@ -9,8 +9,22 @@ on:
       - 'rhc-full-history/**'
 permissions:
   contents: read
+  actions: write
 jobs:
+  cancel-obsolete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel obsolete slow full-history run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/33020452495/cancel" || true
   probe:
+    needs: cancel-obsolete
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,8 +39,8 @@ jobs:
           path: out-alphagate-endpoints/
           retention-days: 1
           if-no-files-found: error
-
   prepare-history:
+    needs: cancel-obsolete
     runs-on: ubuntu-latest
     outputs:
       end_block: ${{ steps.head.outputs.end_block }}
@@ -46,9 +60,9 @@ jobs:
                   request = urllib.request.Request(
                       url,
                       data=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode(),
-                      headers={'content-type':'application/json','user-agent':'RHC-NFT-History/2.0'},
+                      headers={'content-type':'application/json','user-agent':'RHC-NFT-History/2.1'},
                   )
-                  with urllib.request.urlopen(request, timeout=30) as response:
+                  with urllib.request.urlopen(request, timeout=20) as response:
                       end = int(json.loads(response.read().decode())['result'], 16)
                   print(json.dumps({'end_block': end, 'rpc': url}))
                   break
@@ -58,17 +72,16 @@ jobs:
               raise SystemExit('No Robinhood Chain RPC responded')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as file:
               file.write(f'end_block={end}\n')
-
   full-history:
     needs: prepare-history
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 12
       matrix:
         target: [seadrop, seaport]
         segment: [0, 1, 2, 3, 4, 5, 6, 7]
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -81,8 +94,8 @@ jobs:
             --segment-index '${{ matrix.segment }}' \
             --segment-count 8 \
             --end-block '${{ needs.prepare-history.outputs.end_block }}' \
-            --workers 1 \
-            --initial-window 100000 \
+            --workers 2 \
+            --window-blocks 100000 \
             --out 'out-${{ matrix.target }}-${{ matrix.segment }}'
       - uses: actions/upload-artifact@v4
         if: always()
