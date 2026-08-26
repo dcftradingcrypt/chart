@@ -41,7 +41,7 @@ async function one(c){
 }
 
 const results=[];let next=0;
-async function worker(){while(true){const i=next++;if(i>=candidates.length)return;const c=candidates[i];console.log(`DETAIL ${i+1}/${candidates.length} ${c.name} ${c.address}`,flush=true);try{results.push(await one(c))}catch(e){results.push({address:c.address,name:c.name,error:String(e)})}await new Promise(r=>setTimeout(r,350));}}
+async function worker(){while(true){const i=next++;if(i>=candidates.length)return;const c=candidates[i];console.log(`DETAIL ${i+1}/${candidates.length} ${c.name} ${c.address}`);try{results.push(await one(c))}catch(e){results.push({address:c.address,name:c.name,error:String(e)})}await new Promise(r=>setTimeout(r,350));}}
 await Promise.all(Array.from({length:3},()=>worker()));
 results.sort((a,b)=>String(a.address).localeCompare(String(b.address)));
 fs.writeFileSync(path.join(OUT,'index.json'),JSON.stringify(results,null,2));
