@@ -1,0 +1,49 @@
+name: Robinhood Chain SeaDrop and Seaport cursor exports
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'rhc-address-logs/**'
+      - '.github/workflows/rhc-address-logs-pagination.yml'
+permissions:
+  contents: read
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [seadrop, seaport]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Collect all matching address logs through fixed block
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "out-${{ matrix.target }}"
+          TARGET=${{ matrix.target }} FIXED_END_BLOCK=46840468 OUT="out-${{ matrix.target }}" python rhc-address-logs/collect.py 2>&1 | tee "out-${{ matrix.target }}/collector.log"
+      - name: Build manifest
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('out-${{ matrix.target }}');root.mkdir(exist_ok=True);rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+      - name: Upload cursor export
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-address-logs-${{ matrix.target }}
+          path: out-${{ matrix.target }}/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
