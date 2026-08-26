@@ -1,0 +1,52 @@
+name: Robinhood Chain canonical Seaport sale history shards
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'rhc-seaport-sales/**'
+      - '.github/workflows/rhc-seaport-sales-shards.yml'
+permissions:
+  contents: read
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ABI decoder
+        shell: bash
+        run: pip install --disable-pip-version-check --no-cache-dir eth-abi==5.2.0
+      - name: Collect canonical Seaport sale shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "out-seaport-shard-${{ matrix.shard }}"
+          SHARD=${{ matrix.shard }} SHARDS=16 GLOBAL_END_BLOCK=46840468 OUT="out-seaport-shard-${{ matrix.shard }}" python rhc-seaport-sales/collect_shard.py 2>&1 | tee "out-seaport-shard-${{ matrix.shard }}/collector.log"
+      - name: Build manifest
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('out-seaport-shard-${{ matrix.shard }}');root.mkdir(exist_ok=True);rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+      - name: Upload sale shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-seaport-sales-shard-${{ matrix.shard }}
+          path: out-seaport-shard-${{ matrix.shard }}/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
