@@ -1,0 +1,60 @@
+name: Robinhood Chain address logs alternate runners
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'rhc-address-logs/**'
+      - '.github/workflows/rhc-address-logs-alt-runners.yml'
+permissions:
+  contents: read
+jobs:
+  seadrop-macos:
+    runs-on: macos-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Export SeaDrop logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out-seadrop-macos
+          TARGET=seadrop FIXED_END_BLOCK=46840468 OUT=out-seadrop-macos python rhc-address-logs/collect.py 2>&1 | tee out-seadrop-macos/collector.log
+      - name: Upload SeaDrop export
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-address-logs-seadrop-macos
+          path: out-seadrop-macos/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
+  seaport-windows:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Export Seaport logs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out-seaport-windows | Out-Null
+          $env:TARGET='seaport'
+          $env:FIXED_END_BLOCK='46840468'
+          $env:OUT='out-seaport-windows'
+          python rhc-address-logs/collect.py 2>&1 | Tee-Object -FilePath out-seaport-windows/collector.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload Seaport export
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-address-logs-seaport-windows
+          path: out-seaport-windows/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
