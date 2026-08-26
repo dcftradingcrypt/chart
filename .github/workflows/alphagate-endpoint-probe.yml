@@ -1,4 +1,4 @@
-name: AlphaGate endpoint read-only validation
+name: AlphaGate validation and complete RHC NFT history
 on:
   pull_request:
     branches: [main]
@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/alphagate-endpoint-probe.yml'
       - 'alphagate-probe/**'
+      - 'rhc-full-history/**'
 permissions:
   contents: read
 jobs:
@@ -24,3 +25,70 @@ jobs:
           path: out-alphagate-endpoints/
           retention-days: 1
           if-no-files-found: error
+
+  prepare-history:
+    runs-on: ubuntu-latest
+    outputs:
+      end_block: ${{ steps.head.outputs.end_block }}
+    steps:
+      - id: head
+        shell: python
+        run: |
+          import json, os, urllib.request
+          urls = [
+              'https://rpc.mainnet.chain.robinhood.com',
+              'https://robinhood-rpc.publicnode.com',
+              'https://rpc-robinhood.hoodmarket.io',
+          ]
+          end = None
+          for url in urls:
+              try:
+                  request = urllib.request.Request(
+                      url,
+                      data=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode(),
+                      headers={'content-type':'application/json','user-agent':'RHC-NFT-History/2.0'},
+                  )
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      end = int(json.loads(response.read().decode())['result'], 16)
+                  print(json.dumps({'end_block': end, 'rpc': url}))
+                  break
+              except Exception as exc:
+                  print(url, repr(exc))
+          if end is None:
+              raise SystemExit('No Robinhood Chain RPC responded')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as file:
+              file.write(f'end_block={end}\n')
+
+  full-history:
+    needs: prepare-history
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        target: [seadrop, seaport]
+        segment: [0, 1, 2, 3, 4, 5, 6, 7]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect exact topic-filtered history segment
+        run: |
+          python rhc-full-history/collect_segment_v2.py \
+            --target '${{ matrix.target }}' \
+            --segment-index '${{ matrix.segment }}' \
+            --segment-count 8 \
+            --end-block '${{ needs.prepare-history.outputs.end_block }}' \
+            --workers 1 \
+            --initial-window 100000 \
+            --out 'out-${{ matrix.target }}-${{ matrix.segment }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-${{ matrix.target }}-${{ matrix.segment }}
+          path: out-${{ matrix.target }}-${{ matrix.segment }}/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 9
