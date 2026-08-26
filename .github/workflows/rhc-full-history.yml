@@ -1,0 +1,99 @@
+name: RHC full SeaDrop Seaport history and AlphaGate validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-full-history.yml'
+      - 'rhc-full-history/**'
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      end_block: ${{ steps.head.outputs.end_block }}
+    steps:
+      - id: head
+        shell: python
+        run: |
+          import json, os, urllib.request
+          urls = [
+              'https://rpc.mainnet.chain.robinhood.com',
+              'https://robinhood-rpc.publicnode.com',
+              'https://rpc-robinhood.hoodmarket.io',
+          ]
+          end = None
+          used = None
+          for url in urls:
+              try:
+                  req = urllib.request.Request(
+                      url,
+                      data=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode(),
+                      headers={'content-type':'application/json','user-agent':'RHC-NFT-Full-History/1.0'},
+                  )
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      data = json.loads(response.read().decode())
+                  end = int(data['result'], 16)
+                  used = url
+                  break
+              except Exception as exc:
+                  print(url, repr(exc))
+          if end is None:
+              raise SystemExit('No Robinhood Chain RPC responded')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write(f'end_block={end}\n')
+          print(json.dumps({'end_block': end, 'rpc': used}))
+
+  history:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        target: [seadrop, seaport]
+        segment: [0, 1, 2, 3, 4, 5, 6, 7]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect exact topic-filtered segment
+        run: |
+          python rhc-full-history/collect_segment.py \
+            --target '${{ matrix.target }}' \
+            --segment-index '${{ matrix.segment }}' \
+            --segment-count 8 \
+            --end-block '${{ needs.prepare.outputs.end_block }}' \
+            --workers 3 \
+            --out 'out-${{ matrix.target }}-${{ matrix.segment }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rhc-${{ matrix.target }}-${{ matrix.segment }}
+          path: out-${{ matrix.target }}-${{ matrix.segment }}/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 9
+
+  alphagate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Inspect public AlphaGate deployment and extension
+        run: python rhc-full-history/verify_alphagate.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alphagate-live-validation
+          path: out-alphagate/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 9
