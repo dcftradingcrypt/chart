@@ -1,0 +1,36 @@
+name: RHC chain-derived repeat-wallet audit
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-chain-wallet-audit.yml'
+      - 'chain-wallet-audit/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-chain-wallet-audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch full Robinscan histories for every chain-derived repeat-wallet candidate
+        run: python chain-wallet-audit/audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-chain-wallet-audit
+          path: out-chain-wallet-audit/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
