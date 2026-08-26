@@ -1,0 +1,45 @@
+name: Robinhood Chain isolated McBrokers verification
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'rhc-mcbrokers/**'
+      - '.github/workflows/rhc-mcbrokers-clean.yml'
+permissions:
+  contents: read
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Collect McBrokers canonical SeaDrop history
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out-mcbrokers
+          OUT=out-mcbrokers python rhc-mcbrokers/collect.py 2>&1 | tee out-mcbrokers/collector.log
+      - name: Build manifest
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('out-mcbrokers');root.mkdir(exist_ok=True);rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+      - name: Upload McBrokers evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-mcbrokers-clean
+          path: out-mcbrokers/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
