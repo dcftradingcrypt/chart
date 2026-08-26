@@ -1,0 +1,61 @@
+name: Robinhood NFT implementation metadata
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rh-nft-implementation-metadata.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch verified implementation metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          declare -A ADDRS=(
+            [rh-current]='0x776a66e24FdC8bd26C5a51F3dA6b6D03b9242C7E'
+            [rh-initial]='0xA4296B43eA2953F98dAfA89F4D8f30ec129dD0C1'
+            [stackers-current]='0x67e6dCa130A0E6F52306839496c3FE8E3672ef90'
+            [stackers-initial]='0xb2dce48b9ca2dbd0c4a7508621f11942e6838b73'
+            [seadrop-clone]='0x09a26fC8FCEF18192E267D7A6da9dFb4be81Dd6A'
+            [hood-aa-entrypoint]='0x0000000071727De22E5E9d8BAf0edAc6f37da032'
+            [safemars-batcher]='0x92de282b7c5a5557699a0e06a07d0992f92f663e'
+          )
+          for name in "${!ADDRS[@]}"; do
+            addr="${ADDRS[$name]}"
+            curl --fail --silent --show-error --retry 5 --retry-all-errors --max-time 60 \
+              "https://robinhoodchain.blockscout.com/api/v2/smart-contracts/${addr}" \
+              -o "artifacts/${name}.smart-contract.json" || true
+            curl --fail --silent --show-error --retry 5 --retry-all-errors --max-time 60 \
+              "https://robinhoodchain.blockscout.com/api/v2/addresses/${addr}" \
+              -o "artifacts/${name}.address.json" || true
+          done
+          python - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('artifacts')
+          status=[]
+          for p in sorted(root.glob('*.json')):
+              try:
+                  data=json.loads(p.read_text(encoding='utf-8'))
+                  status.append({'file':p.name,'ok':True,'name':data.get('name'),'proxy_type':data.get('proxy_type'),'is_verified':data.get('is_verified')})
+              except Exception as e:
+                  status.append({'file':p.name,'ok':False,'error':str(e)})
+          (root/'metadata-status.json').write_text(json.dumps(status,indent=2),encoding='utf-8')
+          assert any(x['file']=='rh-current.smart-contract.json' and x['ok'] for x in status)
+          PY
+      - name: Upload metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: robinhood-nft-implementation-metadata
+          path: artifacts/
+          retention-days: 7
+          compression-level: 9
+          if-no-files-found: error
