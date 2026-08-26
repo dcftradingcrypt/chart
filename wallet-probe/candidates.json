@@ -1,0 +1,15 @@
+[
+  {"address":"0x121a5da145cd6dbe322d75c514481d2efa188816","priority":"P1","source":"GUAP_REPEAT_PAID","evidence":"PurrHood and Bullpen paid early-mint rows; GUAP PnL not accepted"},
+  {"address":"0x961ef2b282bfa761346464f4f3bffa4bf7eea53f","priority":"P1","source":"GUAP_REPEAT_PAID","evidence":"Licensed Brokers and Bullpen paid early-mint rows; GUAP PnL not accepted"},
+  {"address":"0x51e99a26a3b538a4023e0e1af16e97153056a814","priority":"P1","source":"CROSS_SOURCE_PAID","evidence":"9 LIVES paid SeaDrop entry plus MintGo paid RELAX BRO live entry"},
+  {"address":"0x764611d78dc1a8039a713d33ff614423963ae486","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"20 Robinmilios paid-public mints"},
+  {"address":"0x1c552cf70d8c34156318d6dad4c6c69c3e956392","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"10 Robin Club paid-public mints"},
+  {"address":"0x745b086f34efd3bfde94612c40f3b03118d0d345","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"4 Robinmilios paid-public mints"},
+  {"address":"0x562f6ac10723ef6af9f077a83cf25135fb369612","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"2 Robinmilios paid-public mints"},
+  {"address":"0xb475b45d9d56334a86aa4e907ad8573f93fd6cb3","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"2 Robinmilios paid-public mints"},
+  {"address":"0x02e9f0322620260aeac9110fe167a4d7e907314f","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"1 Robin Club paid-public mint"},
+  {"address":"0x66d7472b717277277bf8ea3b1d07922731d8ea35","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"1 Robin Club paid-public mint"},
+  {"address":"0x76d387388bea6b60ca6d1e97f446f7e26d39d313","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"1 Robin Club paid-public mint"},
+  {"address":"0x9dade467874b15382e6b7dff96486d7126f41116","priority":"P2","source":"STRICT_PAID_PUBLIC_MINTER","evidence":"1 Robin Club paid-public mint"},
+  {"address":"0xedb0f2bdf9f5b2d755a1d8a97154b643a15b3c8e","priority":"P3","source":"GUAP_AND_ONCHAIN_OVERLAP","evidence":"PUNKBLOCK paid row seen in GUAP and canonical SeaDrop; project has mixed free/paid cost basis"}
+]
