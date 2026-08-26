@@ -14,7 +14,20 @@ permissions:
 jobs:
   collect-p0:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: rh-machines
+            address: '0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce'
+          - slug: stackers
+            address: '0x8c646c7d3f9af3afd6cdccd3dc00a01bf2d1298d'
+          - slug: hood-dolls
+            address: '0xb433123b8657dacf3b246b3e25f8952a0cd2f121'
+          - slug: safemars-boarding-pass
+            address: '0xf885faf151e3362ad1634b7f2f5c43338746fbba'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -22,21 +35,45 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Prepare isolated contract input
+        shell: bash
+        env:
+          TARGET_ADDRESS: ${{ matrix.address }}
+        run: |
+          set -euo pipefail
+          python rh-nft-backfill/runtime_patch.py
+          python - <<'PY'
+          import csv, os
+          src='rh-nft-backfill/contracts.csv'
+          dst='rh-nft-backfill/target-contract.csv'
+          target=os.environ['TARGET_ADDRESS'].lower()
+          with open(src,encoding='utf-8-sig',newline='') as f:
+              rows=list(csv.DictReader(f))
+              fields=rows[0].keys()
+          selected=[r for r in rows if r['contract_address'].lower()==target]
+          assert len(selected)==1, (target,len(selected))
+          with open(dst,'w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=fields)
+              w.writeheader();w.writerows(selected)
+          print('TARGET INPUT PASS',target)
+          PY
+
       - name: Validate read-only collector
         shell: bash
         run: |
           set -euo pipefail
-          python rh-nft-backfill/runtime_patch.py
           python -m py_compile rh-nft-backfill/collector.py rh-nft-backfill/runtime_patch.py
           python rh-nft-backfill/collector.py --self-test
-          sha256sum rh-nft-backfill/collector.py rh-nft-backfill/contracts.csv rh-nft-backfill/runtime_patch.py | tee collector-input-sha256.txt
+          sha256sum rh-nft-backfill/collector.py rh-nft-backfill/target-contract.csv rh-nft-backfill/runtime_patch.py | tee collector-input-sha256.txt
 
       - name: Check public data endpoints
         shell: bash
+        env:
+          TARGET_ADDRESS: ${{ matrix.address }}
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 \
-            'https://robinhoodchain.blockscout.com/api/v2/tokens/0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce/transfers' \
+            "https://robinhoodchain.blockscout.com/api/v2/tokens/${TARGET_ADDRESS}/transfers" \
             -o endpoint-probe.json
           python - <<'PY'
           import json
@@ -45,7 +82,7 @@ jobs:
           print('ENDPOINT PROBE PASS', len(data['items']))
           PY
 
-      - name: Collect P0 history
+      - name: Collect isolated P0 history
         id: collect
         continue-on-error: true
         shell: bash
@@ -53,7 +90,7 @@ jobs:
           set -o pipefail
           mkdir -p artifacts
           python rh-nft-backfill/collector.py \
-            --contracts rh-nft-backfill/contracts.csv \
+            --contracts rh-nft-backfill/target-contract.csv \
             --out artifacts/robinhood_nft_p0 \
             --max-pages 5000 \
             --delay 0.12 \
@@ -67,7 +104,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           cp -f collector-input-sha256.txt endpoint-probe.json artifacts/ 2>/dev/null || true
-          cp -f rh-nft-backfill/contracts.csv artifacts/ 2>/dev/null || true
+          cp -f rh-nft-backfill/target-contract.csv artifacts/contracts.csv 2>/dev/null || true
           python - <<'PY'
           import hashlib, json, pathlib
           root=pathlib.Path('artifacts')
@@ -78,11 +115,11 @@ jobs:
           (root/'artifact_manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
           PY
 
-      - name: Upload P0 evidence
+      - name: Upload isolated P0 evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: robinhood-nft-p0-backfill
+          name: robinhood-nft-p0-${{ matrix.slug }}
           path: artifacts/
           retention-days: 7
           compression-level: 9
