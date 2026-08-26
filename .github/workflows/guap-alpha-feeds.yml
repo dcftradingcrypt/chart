@@ -1,0 +1,47 @@
+name: GUAP alpha and wallet feeds
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/guap-alpha-feeds.yml'
+      - 'guap-alpha-fetch/**'
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch public GUAP analytics feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for name in alpha-feed wallet-alpha whale-feed whales sales-feed mint-feed; do
+            curl -L --fail --silent --show-error --max-time 60 "https://guap.wtf/api/mint/${name}.json?t=$(date +%s%N)" -o "out/${name}.json"
+            python -m json.tool "out/${name}.json" >/dev/null
+          done
+          curl -L --fail --silent --show-error --max-time 60 'https://guap.wtf/api/mint/events' -o out/events_probe.txt || true
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('out')
+          summary={}
+          for p in root.glob('*.json'):
+              d=json.loads(p.read_text())
+              summary[p.stem]={'top_type':type(d).__name__,'top_keys':sorted(d) if isinstance(d,dict) else None,'rows':len(d) if isinstance(d,list) else None}
+          (root/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+      - name: Upload feeds
+        uses: actions/upload-artifact@v4
+        with:
+          name: guap-alpha-wallet-feeds
+          path: out/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
