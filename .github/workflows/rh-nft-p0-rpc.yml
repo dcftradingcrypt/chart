@@ -1,0 +1,136 @@
+name: Robinhood NFT P0 direct RPC mint backfill
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'rh-nft-backfill/**'
+      - '.github/workflows/rh-nft-p0-rpc.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  collect-primary-mints:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: rh-machines
+            address: '0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce'
+          - slug: stackers
+            address: '0x8c646c7d3f9af3afd6cdccd3dc00a01bf2d1298d'
+          - slug: hood-dolls
+            address: '0xb433123b8657dacf3b246b3e25f8952a0cd2f121'
+          - slug: safemars-boarding-pass
+            address: '0xf885faf151e3362ad1634b7f2f5c43338746fbba'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Reconstruct and verify collector
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, gzip, hashlib, pathlib
+          src=pathlib.Path('rh-nft-backfill/mint_rpc_collector.py.gz.b64')
+          raw=gzip.decompress(base64.b64decode(src.read_text(encoding='utf-8')))
+          expected='046e8f8bc0c949fa656adb63e88463c137ef7eaae477489a5f5e7f12ab0d4bbf'
+          actual=hashlib.sha256(raw).hexdigest()
+          assert actual==expected,(actual,expected)
+          pathlib.Path('rh-nft-backfill/mint_rpc_collector.py').write_bytes(raw)
+          print('COLLECTOR HASH PASS',actual)
+          PY
+          python -m py_compile rh-nft-backfill/mint_rpc_collector.py
+
+      - name: Prepare isolated contract input
+        shell: bash
+        env:
+          TARGET_ADDRESS: ${{ matrix.address }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv, os
+          target=os.environ['TARGET_ADDRESS'].lower()
+          with open('rh-nft-backfill/contracts.csv',encoding='utf-8-sig',newline='') as f:
+              rows=list(csv.DictReader(f));fields=list(rows[0])
+          selected=[row for row in rows if row['contract_address'].lower()==target]
+          assert len(selected)==1,(target,len(selected))
+          with open('rh-nft-backfill/target-contract.csv','w',encoding='utf-8',newline='') as f:
+              writer=csv.DictWriter(f,fieldnames=fields);writer.writeheader();writer.writerows(selected)
+          print('TARGET INPUT PASS',target)
+          PY
+
+      - name: Probe Robinhood Chain RPC
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            -H 'content-type: application/json' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}' \
+            'https://rpc.mainnet.chain.robinhood.com' \
+            -o rpc-probe.json
+          python - <<'PY'
+          import json
+          data=json.load(open('rpc-probe.json',encoding='utf-8'))
+          assert isinstance(data.get('result'),str) and data['result'].startswith('0x'),data
+          print('RPC PROBE PASS',data['result'])
+          PY
+
+      - name: Collect direct RPC primary-mint history
+        id: collect
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts
+          python rh-nft-backfill/mint_rpc_collector.py \
+            --contract rh-nft-backfill/target-contract.csv \
+            --out artifacts/robinhood_nft_p0_rpc \
+            --rpc-batch 20 \
+            --delay 0.08 \
+            --minimum-split-width 250 \
+            2>&1 | tee artifacts/rpc-backfill.log
+
+      - name: Package evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp -f rpc-probe.json artifacts/ 2>/dev/null || true
+          cp -f rh-nft-backfill/target-contract.csv artifacts/contracts.csv 2>/dev/null || true
+          sha256sum rh-nft-backfill/mint_rpc_collector.py rh-nft-backfill/target-contract.csv > artifacts/collector-input-sha256.txt
+          python - <<'PY'
+          import hashlib, json, pathlib
+          root=pathlib.Path('artifacts')
+          rows=[]
+          for path in sorted(root.rglob('*')):
+              if path.is_file():
+                  rows.append({'path':str(path.relative_to(root)),'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+          (root/'artifact_manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+
+      - name: Upload direct RPC evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robinhood-nft-p0-rpc-${{ matrix.slug }}
+          path: artifacts/
+          retention-days: 7
+          compression-level: 9
+          if-no-files-found: error
+
+      - name: Enforce result
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.collect.outcome }}" = "success"
