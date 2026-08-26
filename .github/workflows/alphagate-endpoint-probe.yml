@@ -1,4 +1,4 @@
-name: AlphaGate validation and complete RHC NFT history
+name: AlphaGate validation, wallet provenance, and complete RHC NFT history
 on:
   pull_request:
     branches: [main]
@@ -7,22 +7,33 @@ on:
       - '.github/workflows/alphagate-endpoint-probe.yml'
       - 'alphagate-probe/**'
       - 'rhc-full-history/**'
+      - 'wallet-probe/**'
 permissions:
   contents: read
   actions: write
+concurrency:
+  group: rhc-complete-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   cancel-obsolete:
     runs-on: ubuntu-latest
     steps:
-      - name: Cancel obsolete slow full-history run
+      - name: Cancel obsolete slow or duplicate research runs
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/runs/33020452495/cancel" || true
+          set +e
+          for run in \
+            33009235517 33009235599 33017288945 33020452495 \
+            33021553812 33021553873 33021625789 33021625803; do
+            curl -sS -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$run/cancel" >/dev/null
+          done
+          exit 0
   probe:
     needs: cancel-obsolete
     runs-on: ubuntu-latest
@@ -34,11 +45,31 @@ jobs:
           python-version: '3.11'
       - run: python alphagate-probe/probe.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: alphagate-endpoint-probe
           path: out-alphagate-endpoints/
           retention-days: 1
           if-no-files-found: error
+  wallet-provenance:
+    needs: cancel-obsolete
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch complete public histories for explicitly sourced wallet candidates
+        run: python wallet-probe/probe_wallets.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-wallet-provenance
+          path: out-wallet-probe/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 9
   prepare-history:
     needs: cancel-obsolete
     runs-on: ubuntu-latest
@@ -76,7 +107,7 @@ jobs:
     needs: prepare-history
     strategy:
       fail-fast: false
-      max-parallel: 12
+      max-parallel: 8
       matrix:
         target: [seadrop, seaport]
         segment: [0, 1, 2, 3, 4, 5, 6, 7]
