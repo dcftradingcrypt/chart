@@ -1,0 +1,49 @@
+name: Robinhood Chain global SeaDrop history shards
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'rhc-seadrop-population/collect_global_shard.py'
+      - '.github/workflows/rhc-seadrop-global-shards.yml'
+permissions:
+  contents: read
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Collect global SeaDrop shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "out-global-shard-${{ matrix.shard }}"
+          SHARD=${{ matrix.shard }} SHARDS=16 OUT="out-global-shard-${{ matrix.shard }}" python rhc-seadrop-population/collect_global_shard.py 2>&1 | tee "out-global-shard-${{ matrix.shard }}/collector.log"
+      - name: Build manifest
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('out-global-shard-${{ matrix.shard }}');root.mkdir(exist_ok=True);rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+      - name: Upload global shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-seadrop-global-shard-${{ matrix.shard }}
+          path: out-global-shard-${{ matrix.shard }}/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 9
