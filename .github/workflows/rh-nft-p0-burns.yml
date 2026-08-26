@@ -1,0 +1,98 @@
+name: Robinhood NFT P0 burn reconciliation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'rh-nft-backfill/**'
+      - '.github/workflows/rh-nft-p0-burns.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  collect-burns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: rh-machines
+            address: '0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce'
+          - slug: stackers
+            address: '0x8c646c7d3f9af3afd6cdccd3dc00a01bf2d1298d'
+          - slug: hood-dolls
+            address: '0xb433123b8657dacf3b246b3e25f8952a0cd2f121'
+          - slug: safemars-boarding-pass
+            address: '0xf885faf151e3362ad1634b7f2f5c43338746fbba'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reconstruct collector and target input
+        shell: bash
+        env:
+          TARGET_ADDRESS: ${{ matrix.address }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,csv,gzip,hashlib,os,pathlib
+          src=pathlib.Path('rh-nft-backfill/burn_rpc_collector.py.gz.b64')
+          raw=gzip.decompress(base64.b64decode(src.read_text(encoding='utf-8')))
+          expected='f4cdec5857955cd9e473998ace0887a1e995c03ad44af89228390ed13fa0fa4e'
+          actual=hashlib.sha256(raw).hexdigest();assert actual==expected,(actual,expected)
+          pathlib.Path('rh-nft-backfill/burn_rpc_collector.py').write_bytes(raw)
+          target=os.environ['TARGET_ADDRESS'].lower()
+          with open('rh-nft-backfill/contracts.csv',encoding='utf-8-sig',newline='') as f:
+              rows=list(csv.DictReader(f));fields=list(rows[0])
+          selected=[r for r in rows if r['contract_address'].lower()==target];assert len(selected)==1
+          with open('rh-nft-backfill/target-contract.csv','w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows(selected)
+          print('INPUT PASS',actual,target)
+          PY
+          python -m py_compile rh-nft-backfill/burn_rpc_collector.py
+      - name: Collect burn history
+        id: collect
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts
+          python rh-nft-backfill/burn_rpc_collector.py \
+            --contract rh-nft-backfill/target-contract.csv \
+            --out artifacts/burns \
+            --rpc-batch 25 \
+            --delay 0.08 \
+            --minimum-split-width 250 \
+            2>&1 | tee artifacts/burn-backfill.log
+      - name: Package evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp rh-nft-backfill/target-contract.csv artifacts/contracts.csv
+          sha256sum rh-nft-backfill/burn_rpc_collector.py rh-nft-backfill/target-contract.csv > artifacts/collector-input-sha256.txt
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('artifacts');rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'artifact_manifest.json').write_text(json.dumps({'files':rows},indent=2),encoding='utf-8')
+          PY
+      - name: Upload burn evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robinhood-nft-p0-burn-${{ matrix.slug }}
+          path: artifacts/
+          retention-days: 7
+          compression-level: 9
+          if-no-files-found: error
+      - name: Enforce result
+        if: always()
+        shell: bash
+        run: test "${{ steps.collect.outcome }}" = "success"
