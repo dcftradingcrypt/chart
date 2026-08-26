@@ -7,6 +7,7 @@ from typing import Any
 
 OUT=Path(os.getenv('OUT','out-global-shard'));OUT.mkdir(parents=True,exist_ok=True)
 SHARD=int(os.getenv('SHARD','0'));SHARDS=int(os.getenv('SHARDS','16'))
+FIXED_END_BLOCK=int(os.getenv('GLOBAL_END_BLOCK','46840468'))
 BLOCKSCOUT='https://robinhoodchain.blockscout.com/api';RPC='https://rpc.mainnet.chain.robinhood.com/rpc'
 SEADROP='0x00005ea00ac477b1030ce78506496e8c2de24bf5';TOPIC0='0xe90cf9cc0a552cf52ea6ff74ece0f1c8ae8cc9ad630d3181f55ac43ca076b7d6'
 UA=f'RHC-SeaDrop-Global-Shard/{SHARD}';last_request=0.0;calls=0;backoffs=0;ranges=[]
@@ -33,11 +34,6 @@ def get_json(url,attempts=18):
   except Exception as e:
    last=e;time.sleep(min(45,2**i+random.random()))
  raise RuntimeError(f'{url}: {last}')
-def rpc(method,params):
- body=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode();req=urllib.request.Request(RPC,data=body,headers={'content-type':'application/json','user-agent':UA})
- with urllib.request.urlopen(req,timeout=90) as r:d=json.loads(r.read().decode())
- if 'error' in d:raise RuntimeError(d['error'])
- return d['result']
 def words(data):
  s=data[2:] if data.startswith('0x') else data
  return [int(s[i:i+64],16) for i in range(0,len(s),64) if len(s[i:i+64])==64]
@@ -59,8 +55,8 @@ def write_csv(path,rows):
   w=csv.DictWriter(f,fieldnames=fields,extrasaction='ignore');w.writeheader()
   for r in rows:w.writerow({k:json.dumps(v,ensure_ascii=False,sort_keys=True) if isinstance(v,(list,dict)) else v for k,v in r.items()})
 def main():
- latest=int(rpc('eth_blockNumber',[]),16);span=latest+1;start=(span*SHARD)//SHARDS;end=(span*(SHARD+1))//SHARDS-1
- print(f'shard={SHARD}/{SHARDS} range={start}-{end} latest={latest}',flush=True)
+ latest=FIXED_END_BLOCK;span=latest+1;start=(span*SHARD)//SHARDS;end=(span*(SHARD+1))//SHARDS-1
+ print(f'shard={SHARD}/{SHARDS} range={start}-{end} fixed_end={latest}',flush=True)
  raw=fetch(start,end);dedup={(str(x.get('transactionHash')).lower(),str(x.get('logIndex'))):x for x in raw}
  raw=sorted(dedup.values(),key=lambda x:(int(str(x.get('blockNumber','0x0')),16),int(str(x.get('logIndex','0x0')),16)))
  events=[]
@@ -72,6 +68,6 @@ def main():
  write_csv(OUT/'events.csv',events);write_csv(OUT/'scan_ranges.csv',ranges)
  with (OUT/'events.jsonl').open('w',encoding='utf-8') as f:
   for e in events:f.write(json.dumps(e,ensure_ascii=False,sort_keys=True)+'\n')
- validation={'status':'PASS','shard':SHARD,'shards':SHARDS,'from_block':start,'to_block':end,'latest_block_at_start':latest,'raw_rows':len(raw),'event_rows':len(events),'unique_contracts':len({e['nft_contract'] for e in events}),'api_calls':calls,'rate_limit_backoffs':backoffs,'range_rows':len(ranges)}
+ validation={'status':'PASS','shard':SHARD,'shards':SHARDS,'from_block':start,'to_block':end,'fixed_end_block':latest,'raw_rows':len(raw),'event_rows':len(events),'unique_contracts':len({e['nft_contract'] for e in events}),'api_calls':calls,'rate_limit_backoffs':backoffs,'range_rows':len(ranges)}
  (OUT/'validation.json').write_text(json.dumps(validation,indent=2),encoding='utf-8');print(json.dumps(validation),flush=True)
 if __name__=='__main__':main()
