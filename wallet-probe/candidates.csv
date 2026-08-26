@@ -1,0 +1,21 @@
+wallet_address,investigation_tier,research_priority_score,source_count,source_guap,source_onchain,source_mintgo_live,paid_collections,onchain_strict_paid_public_projects,onchain_broad_paid_only_projects,mintgo_live_paid_projects,verified_paid_project_evidence,paid_names,strict_projects,broad_projects,mintgo_live_collections
+0x121a5da145cd6dbe322d75c514481d2efa188816,P1_GUAP_REPEAT_PAID_NEEDS_ONCHAIN,8.0,1,True,False,False,2.0,0.0,0.0,0.0,2.0,PurrHood|Bullpen,,,
+0x961ef2b282bfa761346464f4f3bffa4bf7eea53f,P1_GUAP_REPEAT_PAID_NEEDS_ONCHAIN,8.0,1,True,False,False,2.0,0.0,0.0,0.0,2.0,Licensed Brokers|Bullpen,,,
+0x51e99a26a3b538a4023e0e1af16e97153056a814,P2_CROSS_SOURCE_PAID,12.791759469228056,2,False,True,True,0.0,0.0,1.0,1.0,2.0,,,9 LIVES,RELAX BRO
+0x764611d78dc1a8039a713d33ff614423963ae486,P2_STRICT_PAID_PUBLIC_MINTER,13.044522437723424,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robinmilios,Robinmilios,
+0x1c552cf70d8c34156318d6dad4c6c69c3e956392,P2_STRICT_PAID_PUBLIC_MINTER,12.39789527279837,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robin Club,Robin Club,
+0x745b086f34efd3bfde94612c40f3b03118d0d345,P2_STRICT_PAID_PUBLIC_MINTER,11.6094379124341,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robinmilios,Robinmilios,
+0x562f6ac10723ef6af9f077a83cf25135fb369612,P2_STRICT_PAID_PUBLIC_MINTER,11.09861228866811,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robinmilios,Robinmilios,
+0xb475b45d9d56334a86aa4e907ad8573f93fd6cb3,P2_STRICT_PAID_PUBLIC_MINTER,11.09861228866811,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robinmilios,Robinmilios,
+0x02e9f0322620260aeac9110fe167a4d7e907314f,P2_STRICT_PAID_PUBLIC_MINTER,10.693147180559944,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robin Club,Robin Club,
+0x66d7472b717277277bf8ea3b1d07922731d8ea35,P2_STRICT_PAID_PUBLIC_MINTER,10.693147180559944,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robin Club,Robin Club,
+0x76d387388bea6b60ca6d1e97f446f7e26d39d313,P2_STRICT_PAID_PUBLIC_MINTER,10.693147180559944,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robin Club,Robin Club,
+0x9dade467874b15382e6b7dff96486d7126f41116,P2_STRICT_PAID_PUBLIC_MINTER,10.693147180559944,1,False,True,False,0.0,1.0,1.0,0.0,1.0,,Robin Club,Robin Club,
+0x12fd5c011e595d1a099e94abcf0fd093ce24852c,P3_GUAP_PAID_SEED,8.791759469228055,2,True,False,True,1.0,0.0,0.0,0.0,1.0,LOYU00,,,King Chunky BH
+0x5188701e46e93a06a1c89999515309bb0626493a,P3_GUAP_PAID_SEED,8.791759469228055,2,True,False,True,1.0,0.0,0.0,0.0,1.0,LOYU00,,,King Chunky BH
+0x91481f82d8625f7c472c8d666aadf4182fa11ec8,P3_GUAP_PAID_SEED,8.791759469228055,2,True,False,True,1.0,0.0,0.0,0.0,1.0,LOYU00,,,King Chunky BH
+0xd390d73c7e67812d308e04dced08026cfa60bc43,P3_GUAP_PAID_SEED,8.791759469228055,2,True,False,True,1.0,0.0,0.0,0.0,1.0,LOYU00,,,King Chunky BH
+0xedb0f2bdf9f5b2d755a1d8a97154b643a15b3c8e,P3_GUAP_PAID_SEED,8.38629436111989,2,True,True,False,1.0,0.0,0.0,0.0,1.0,PUNKBLOCK,,,
+0x4bc98b9112229ee07d85a6827d3bde713c8e7e24,P3_GUAP_PAID_SEED,4.0,1,True,False,False,1.0,0.0,0.0,0.0,1.0,Baysed Mancer,,,
+0xa006dcb0bf9714eb9feb7f88c19ebcd20cc44cfa,P3_GUAP_PAID_SEED,4.0,1,True,False,False,1.0,0.0,0.0,0.0,1.0,Baysed Mancer,,,
+0xfe80a4f2d6456327663c6b76e167e598e1142364,P3_GUAP_PAID_SEED,4.0,1,True,False,False,1.0,0.0,0.0,0.0,1.0,Mini Brokers,,,
