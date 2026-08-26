@@ -8,6 +8,10 @@ on:
       - '.github/workflows/rhc-full-history.yml'
       - 'rhc-full-history/**'
 
+concurrency:
+  group: rhc-full-history-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -33,7 +37,7 @@ jobs:
                   req = urllib.request.Request(
                       url,
                       data=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode(),
-                      headers={'content-type':'application/json','user-agent':'RHC-NFT-Full-History/1.0'},
+                      headers={'content-type':'application/json','user-agent':'RHC-NFT-Full-History/2.0'},
                   )
                   with urllib.request.urlopen(req, timeout=30) as response:
                       data = json.loads(response.read().decode())
@@ -52,12 +56,12 @@ jobs:
     needs: prepare
     strategy:
       fail-fast: false
-      max-parallel: 12
+      max-parallel: 8
       matrix:
         target: [seadrop, seaport]
         segment: [0, 1, 2, 3, 4, 5, 6, 7]
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -65,12 +69,13 @@ jobs:
           python-version: '3.11'
       - name: Collect exact topic-filtered segment
         run: |
-          python rhc-full-history/collect_segment.py \
+          python rhc-full-history/collect_segment_v2.py \
             --target '${{ matrix.target }}' \
             --segment-index '${{ matrix.segment }}' \
             --segment-count 8 \
             --end-block '${{ needs.prepare.outputs.end_block }}' \
-            --workers 3 \
+            --workers 1 \
+            --initial-window 100000 \
             --out 'out-${{ matrix.target }}-${{ matrix.segment }}'
       - uses: actions/upload-artifact@v4
         with:
