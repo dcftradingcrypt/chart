@@ -26,20 +26,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sed -i 's/txhashes=sorted({r\["tx_hash"\] for r in all_tr if r.get("tx_hash")})/txhashes=sorted({r["tx_hash"] for r in all_tr if r.get("tx_hash") and r["event_kind"]=="MINT"})/' rh-nft-backfill/collector.py
-          python -m py_compile rh-nft-backfill/collector.py
+          python rh-nft-backfill/runtime_patch.py
+          python -m py_compile rh-nft-backfill/collector.py rh-nft-backfill/runtime_patch.py
           python rh-nft-backfill/collector.py --self-test
-          sha256sum rh-nft-backfill/collector.py rh-nft-backfill/contracts.csv | tee collector-input-sha256.txt
+          sha256sum rh-nft-backfill/collector.py rh-nft-backfill/contracts.csv rh-nft-backfill/runtime_patch.py | tee collector-input-sha256.txt
 
       - name: Check public data endpoints
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 'https://robinscan.io/api/address/0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce/transfers?scope=token' | head -c 500 > endpoint-probe.json
+          curl --fail --silent --show-error --max-time 30 \
+            'https://robinhoodchain.blockscout.com/api/v2/tokens/0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce/transfers' \
+            -o endpoint-probe.json
           python - <<'PY'
           import json
-          json.load(open('endpoint-probe.json', encoding='utf-8'))
-          print('ENDPOINT PROBE PASS')
+          data=json.load(open('endpoint-probe.json', encoding='utf-8'))
+          assert isinstance(data.get('items'), list)
+          print('ENDPOINT PROBE PASS', len(data['items']))
           PY
 
       - name: Collect P0 history
