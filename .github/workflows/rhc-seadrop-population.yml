@@ -14,18 +14,19 @@ permissions:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Scan canonical SeaDropMint events
+      - name: Scan canonical SeaDropMint events with pacing and checkpoints
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p out
-          OUT=out python rhc-seadrop-population/collect.py 2>&1 | tee out/collector.log
+          python -m py_compile rhc-seadrop-population/collect_v2.py
+          OUT=out python rhc-seadrop-population/collect_v2.py 2>&1 | tee out/collector.log
       - name: Build manifest
         if: always()
         shell: bash
@@ -42,7 +43,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rhc-seadrop-population
+          name: rhc-seadrop-population-v2
           path: out/
           if-no-files-found: error
           retention-days: 2
