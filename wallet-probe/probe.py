@@ -16,7 +16,7 @@ def get(path,params=None):
   if w>0: time.sleep(w)
   calls+=1
   try:
-   q=urllib.request.Request(u,headers={'user-agent':'RHC-Wallet-Audit/1.0','accept':'application/json'})
+   q=urllib.request.Request(u,headers={'user-agent':'RHC-Wallet-Audit/1.1','accept':'application/json'})
    with urllib.request.urlopen(q,timeout=60) as r:x=r.read()
    last=time.monotonic(); return json.loads(x)
   except urllib.error.HTTPError as z:
@@ -54,7 +54,6 @@ def ts(x):
 def words(s):
  s=s[2:] if s.startswith('0x') else s
  return [int(s[i:i+64],16) for i in range(0,len(s),64) if len(s[i:i+64])==64]
-
 def ta(s):return '0x'+s[-40:].lower()
 def iv(x):
  try:return int(x,16) if isinstance(x,str) and x.startswith('0x') else int(x or 0)
@@ -69,10 +68,12 @@ def write(name,rows):
 C=list(csv.DictReader(open('wallet-probe/candidates.csv',encoding='utf-8-sig')))
 S=[];M=[];V=[];E=[];cache={}
 for n,c in enumerate(C,1):
- w=c['wallet_address'].lower();print(n,len(C),w,flush=True)
+ w=c['wallet_address'].lower();print(n,len(C),w,flush=True);cnt={};counter_error=None
  try:
-  cnt=get(f'/api/address/{w}/counters'); tr=pages(f'/api/address/{w}/transfers')
-  (O/'raw'/f'{w}.json').write_text(json.dumps({'candidate':c,'counters':cnt,'transfers':tr},ensure_ascii=False),encoding='utf-8')
+  try:cnt=get(f'/api/address/{w}/counters')
+  except Exception as e:counter_error=repr(e);E.append({'wallet':w,'stage':'counters_optional','error':counter_error})
+  tr=pages(f'/api/address/{w}/transfers')
+  (O/'raw'/f'{w}.json').write_text(json.dumps({'candidate':c,'counters':cnt,'counter_error':counter_error,'transfers':tr},ensure_ascii=False),encoding='utf-8')
   mi=set();out=set()
   for r in tr:
    fr=ad(r.get('from'));to=ad(r.get('to'));h=str(r.get('txHash') or r.get('transaction_hash') or '').lower()
@@ -92,8 +93,8 @@ for n,c in enumerate(C,1):
   m=[r for r in M if r['wallet']==w];v=[r for r in V if r['wallet']==w]
   pc=sorted({r['nft_contract'] for r in m if r['is_paid']}); pp=sorted({r['nft_contract'] for r in m if r['is_paid'] and r['stage_index']==0});fc=sorted({r['nft_contract'] for r in m if r['is_free']})
   cl='TARGET_A_REPEAT_PUBLIC_PAID_WITH_SALE_EVIDENCE' if len(pp)>=3 and v else 'TARGET_B_REPEAT_PUBLIC_PAID' if len(pp)>=2 else 'WATCH_REPEAT_PAID_INCLUDES_NONPUBLIC' if len(pc)>=2 else 'INSUFFICIENT_ONE_PAID_PROJECT' if len(pc)==1 else 'NO_PAID_SEADROP_EVIDENCE'
-  S.append({**c,'robinscan_total_transactions':cnt.get('transactions'),'robinscan_total_token_transfers':cnt.get('tokenTransfers'),'transfers_fetched':len(tr),'mint_tx_candidates':len(mi),'outbound_tx_candidates':len(out),'seadrop_events':len(m),'paid_projects':len(pc),'paid_public_projects':len(pp),'free_projects':len(fc),'sale_tx_evidence':len({x['transaction_hash'] for x in v}),'paid_contracts':pc,'paid_public_contracts':pp,'free_contracts':fc,'classification':cl,'production_approved':False})
- except Exception as e:E.append({'wallet':w,'stage':'wallet','error':repr(e)});S.append({**c,'classification':'FETCH_FAILED','production_approved':False})
+  S.append({**c,'counter_error':counter_error,'robinscan_total_transactions':cnt.get('transactions'),'robinscan_total_token_transfers':cnt.get('tokenTransfers'),'transfers_fetched':len(tr),'mint_tx_candidates':len(mi),'outbound_tx_candidates':len(out),'seadrop_events':len(m),'paid_projects':len(pc),'paid_public_projects':len(pp),'free_projects':len(fc),'sale_tx_evidence':len({x['transaction_hash'] for x in v}),'paid_contracts':pc,'paid_public_contracts':pp,'free_contracts':fc,'classification':cl,'production_approved':False})
+ except Exception as e:E.append({'wallet':w,'stage':'transfers_required','error':repr(e)});S.append({**c,'counter_error':counter_error,'classification':'FETCH_FAILED','production_approved':False})
 F=defaultdict(list)
 for r in S:F[json.dumps({'p':r.get('paid_contracts',[]),'pp':r.get('paid_public_contracts',[]),'f':r.get('free_contracts',[])},sort_keys=True)].append(r['wallet_address'])
 D=[{'cluster_id':f'EXACT_PORTFOLIO_{i:03d}','wallet_count':len(ws),'wallets':ws,'fingerprint':json.loads(fp),'interpretation':'DUPLICATE_BEHAVIOR_RISK_NOT_IDENTITY_PROOF'} for i,(fp,ws) in enumerate(sorted(F.items(),key=lambda x:-len(x[1])),1) if len(ws)>1]
