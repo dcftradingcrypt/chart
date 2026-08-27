@@ -24,8 +24,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Reconcile standard mint supply, burns, and SeaDrop quantities
-        run: python rhc-supply-reconcile/reconcile.py --contracts rhc-supply-reconcile/contracts.csv --out out-supply
+      - name: Reconcile standard mint supply, burns, and SeaDrop quantities at finalized cutoff
+        run: >-
+          python rhc-supply-reconcile/reconcile.py
+          --contracts rhc-supply-reconcile/contracts.csv
+          --head-block 47475320
+          --out out-supply
       - uses: actions/upload-artifact@v4
         if: always()
         with:
