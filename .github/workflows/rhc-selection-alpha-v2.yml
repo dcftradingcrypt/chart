@@ -1,0 +1,39 @@
+name: RHC selection-alpha Blockscout v2 histories
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-selection-alpha-v2.yml'
+      - 'rhc-selection-alpha/fetch_blockscout_v2.py'
+
+permissions:
+  contents: read
+
+jobs:
+  history:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [seadrop, seaport]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch complete v2 keyset event history
+        run: >-
+          python rhc-selection-alpha/fetch_blockscout_v2.py
+          --target '${{ matrix.target }}'
+          --out 'out-${{ matrix.target }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-selection-alpha-v2-${{ matrix.target }}
+          path: out-${{ matrix.target }}/
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 9
