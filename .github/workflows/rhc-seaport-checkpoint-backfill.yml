@@ -1,0 +1,41 @@
+name: RHC Seaport checkpoint backfill
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-seaport-checkpoint-backfill.yml'
+      - 'rhc-checkpoint-backfill/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-seaport-checkpoint-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  seaport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect complete Seaport OrderFulfilled history with checkpoints
+        run: >-
+          python rhc-checkpoint-backfill/collect.py
+          --target seaport
+          --out out-seaport
+          --workers 6
+          --initial-window 500000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-checkpoint-seaport
+          path: out-seaport/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
