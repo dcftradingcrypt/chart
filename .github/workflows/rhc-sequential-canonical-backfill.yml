@@ -1,0 +1,63 @@
+name: RHC sequential canonical backfill
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-sequential-canonical-backfill.yml'
+      - 'rhc-sequential-backfill/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-sequential-canonical-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  seadrop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect complete SeaDropMint history
+        env:
+          RHC_MIN_INTERVAL_SECONDS: '16'
+          RHC_MAX_ATTEMPTS: '40'
+        run: python rhc-sequential-backfill/collect.py --target seadrop --out out-seadrop
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-canonical-seadrop
+          path: out-seadrop/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
+
+  seaport:
+    needs: seadrop
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect complete Seaport OrderFulfilled history
+        env:
+          RHC_MIN_INTERVAL_SECONDS: '16'
+          RHC_MAX_ATTEMPTS: '40'
+        run: python rhc-sequential-backfill/collect.py --target seaport --out out-seaport
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-canonical-seaport
+          path: out-seaport/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
