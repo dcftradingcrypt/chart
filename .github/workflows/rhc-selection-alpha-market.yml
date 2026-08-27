@@ -1,0 +1,31 @@
+name: RHC selection-alpha market snapshots
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-selection-alpha-market.yml'
+      - 'rhc-selection-market/**'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python rhc-selection-market/fetch_snapshots.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-selection-alpha-market
+          path: out-market/
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 9
