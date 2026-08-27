@@ -1,0 +1,127 @@
+name: Fetch GuarEmperor public X posts
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/fetch-guaremperor-posts.yml'
+      - 'x-post-fetch/guaremperor/**'
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch post JSON and media
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import re
+          import urllib.parse
+          import urllib.request
+
+          posts = [
+              ("2089713373659447783", "https://api.fxtwitter.com/GuarEmperor/status/2089713373659447783"),
+              ("2092954898434490799", "https://api.fxtwitter.com/GuarEmperor/status/2092954898434490799"),
+          ]
+          root = pathlib.Path("out")
+          root.mkdir(parents=True, exist_ok=True)
+          headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+          index = []
+
+          def walk(value, path=""):
+              if isinstance(value, dict):
+                  for key, item in value.items():
+                      yield from walk(item, f"{path}.{key}" if path else key)
+              elif isinstance(value, list):
+                  for i, item in enumerate(value):
+                      yield from walk(item, f"{path}[{i}]")
+              else:
+                  yield path, value
+
+          for post_id, url in posts:
+              dest = root / post_id
+              media_dir = dest / "media"
+              media_dir.mkdir(parents=True, exist_ok=True)
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  raw = response.read()
+              (dest / "post.json").write_bytes(raw)
+              data = json.loads(raw.decode("utf-8"))
+              tweet = data.get("tweet") or data.get("status") or data
+              strings = [(p, v) for p, v in walk(tweet) if isinstance(v, str)]
+              urls = []
+              for path, value in strings:
+                  if value.startswith(("http://", "https://")):
+                      urls.append({"path": path, "url": value})
+                  for found in re.findall(r"https?://[^\s\"<>]+", value):
+                      urls.append({"path": path, "url": found.rstrip("),.;]")})
+              seen = set()
+              unique_urls = []
+              for row in urls:
+                  if row["url"] not in seen:
+                      seen.add(row["url"])
+                      unique_urls.append(row)
+              media_urls = [
+                  row for row in unique_urls
+                  if any(host in row["url"] for host in ("pbs.twimg.com", "video.twimg.com", "ton.twimg.com"))
+              ]
+              downloaded = []
+              for i, row in enumerate(media_urls, 1):
+                  media_url = row["url"]
+                  parsed = urllib.parse.urlparse(media_url)
+                  ext = pathlib.Path(parsed.path).suffix or ".bin"
+                  filename = f"{i:02d}{ext}"
+                  target = media_dir / filename
+                  try:
+                      media_req = urllib.request.Request(media_url, headers={"User-Agent": "Mozilla/5.0"})
+                      with urllib.request.urlopen(media_req, timeout=60) as response:
+                          target.write_bytes(response.read())
+                      downloaded.append({
+                          "source_url": media_url,
+                          "file": str(target.relative_to(root)),
+                          "bytes": target.stat().st_size,
+                          "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+                      })
+                  except Exception as exc:
+                      downloaded.append({"source_url": media_url, "error": repr(exc)})
+              summary = {
+                  "post_id": post_id,
+                  "source_url": url,
+                  "tweet_url": tweet.get("url") if isinstance(tweet, dict) else None,
+                  "author": tweet.get("author") if isinstance(tweet, dict) else None,
+                  "created_at": tweet.get("created_at") if isinstance(tweet, dict) else None,
+                  "text": tweet.get("text") if isinstance(tweet, dict) else None,
+                  "quote": tweet.get("quote") if isinstance(tweet, dict) else None,
+                  "replying_to": tweet.get("replying_to") if isinstance(tweet, dict) else None,
+                  "media_urls": media_urls,
+                  "downloaded_media": downloaded,
+                  "external_urls": [row for row in unique_urls if row not in media_urls],
+                  "engagement": {
+                      key: tweet.get(key) if isinstance(tweet, dict) else None
+                      for key in ("likes", "retweets", "replies", "views", "bookmarks")
+                  },
+              }
+              (dest / "summary.json").write_text(
+                  json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+              )
+              index.append(summary)
+
+          (root / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guaremperor-x-posts
+          path: out/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 9
