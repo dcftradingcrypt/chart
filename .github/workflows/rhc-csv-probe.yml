@@ -1,0 +1,28 @@
+name: RHC complete address-log CSV probe
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-csv-probe.yml'
+      - 'rhc-direct-probe/csv_probe.py'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python rhc-direct-probe/csv_probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-csv-probe
+          path: out-csv/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 9
