@@ -1,0 +1,27 @@
+name: RHC direct full-range history probe
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-direct-history-probe.yml'
+      - 'rhc-direct-probe/**'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python rhc-direct-probe/probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-direct-history-probe
+          path: out-direct/
+          retention-days: 1
+          if-no-files-found: error
