@@ -1,0 +1,115 @@
+name: RHC selection-alpha independently sharded histories
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-selection-shards.yml'
+      - 'rhc-shards/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-selection-shards-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      head_block: ${{ steps.head.outputs.head_block }}
+    steps:
+      - id: head
+        shell: python
+        run: |
+          import json, os, urllib.request
+          urls = [
+              'https://rpc.mainnet.chain.robinhood.com',
+              'https://robinhood-rpc.publicnode.com',
+              'https://rpc-robinhood.hoodmarket.io',
+          ]
+          head = None
+          used = None
+          for url in urls:
+              try:
+                  req = urllib.request.Request(
+                      url,
+                      data=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode(),
+                      headers={'content-type':'application/json','user-agent':'RHC-Selection-Shards/1.0'},
+                  )
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      head = int(json.loads(response.read().decode())['result'], 16)
+                  used = url
+                  break
+              except Exception as exc:
+                  print(url, repr(exc))
+          if head is None:
+              raise SystemExit('No Robinhood Chain RPC returned a head block')
+          print(json.dumps({'head_block': head, 'rpc': used}))
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
+              handle.write(f'head_block={head}\n')
+
+  collect:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        target: [seadrop, seaport]
+        segment: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect exact address/topic shard
+        run: >-
+          python rhc-shards/collect.py
+          --target '${{ matrix.target }}'
+          --segment-index '${{ matrix.segment }}'
+          --segment-count 32
+          --head '${{ needs.prepare.outputs.head_block }}'
+          --workers 4
+          --out 'out-${{ matrix.target }}-${{ matrix.segment }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-shard-${{ matrix.target }}-${{ matrix.segment }}
+          path: out-${{ matrix.target }}-${{ matrix.segment }}/
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 9
+
+  merge:
+    needs: [prepare, collect]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-shard-*
+          path: shards
+      - name: Merge and enforce complete coverage
+        run: >-
+          python rhc-shards/merge.py
+          --shards shards
+          --out merged
+          --head '${{ needs.prepare.outputs.head_block }}'
+          --segments 32
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-selection-alpha-shards-merged
+          path: merged/
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 9
