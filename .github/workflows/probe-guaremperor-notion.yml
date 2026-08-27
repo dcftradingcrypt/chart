@@ -1,0 +1,156 @@
+name: Probe GuarEmperor public Notion trackers
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/probe-guaremperor-notion.yml'
+      - 'x-post-fetch/guaremperor/**'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe tracker pages and public page APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import re
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          targets = [
+              {
+                  "name": "wallets_nfts",
+                  "url": "https://uttermost-pumpkin-971.notion.site/b8ca8c3741d74d709e6c8e17c254818d?v=3c02390761ca816cb594000c92f2f6ce&pvs=74",
+                  "page_id": "b8ca8c3741d74d709e6c8e17c254818d",
+              },
+              {
+                  "name": "wallet_pons_meme",
+                  "url": "https://app.notion.com/library/recents?spaceId=fe4aec61345048b39cdfcaa3246e08e7&p=d6e701daad2d4b5dad3968edbcb4d5d1&pm=s&pvs=140",
+                  "page_id": "d6e701daad2d4b5dad3968edbcb4d5d1",
+              },
+              {
+                  "name": "wallet_arc_meme",
+                  "url": "https://uttermost-pumpkin-971.notion.site/d0afecae9b1445fc8f73f1b44b43b75c?v=cd6f8615c95f4d9881688c70c0d23053&pvs=74",
+                  "page_id": "d0afecae9b1445fc8f73f1b44b43b75c",
+              },
+              {
+                  "name": "wallet_stable_meme",
+                  "url": "https://uttermost-pumpkin-971.notion.site/80f2d75809244415bae1ff4b48d78cf1?v=5fa6abd7ba704cd6b67714325200408a&pvs=74",
+                  "page_id": "80f2d75809244415bae1ff4b48d78cf1",
+              },
+          ]
+          out = pathlib.Path("out-notion")
+          out.mkdir(parents=True, exist_ok=True)
+          headers = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+          }
+          results = []
+
+          def request(url, *, data=None, method=None, extra_headers=None):
+              hdr = dict(headers)
+              if extra_headers:
+                  hdr.update(extra_headers)
+              req = urllib.request.Request(url, data=data, method=method, headers=hdr)
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as response:
+                      body = response.read()
+                      return {
+                          "status": response.status,
+                          "final_url": response.geturl(),
+                          "content_type": response.headers.get("content-type"),
+                          "body": body,
+                      }
+              except urllib.error.HTTPError as exc:
+                  return {
+                      "status": exc.code,
+                      "final_url": exc.geturl(),
+                      "content_type": exc.headers.get("content-type") if exc.headers else None,
+                      "body": exc.read(),
+                  }
+              except Exception as exc:
+                  return {"status": 0, "final_url": url, "content_type": None, "body": b"", "error": repr(exc)}
+
+          for target in targets:
+              dest = out / target["name"]
+              dest.mkdir(parents=True, exist_ok=True)
+              page = request(target["url"])
+              body = page.pop("body")
+              (dest / "page.html").write_bytes(body)
+              text = body.decode("utf-8", "replace")
+              title_match = re.search(r"<title[^>]*>(.*?)</title>", text, flags=re.I | re.S)
+              addresses = sorted(set(x.lower() for x in re.findall(r"0x[a-fA-F0-9]{40}", text)))
+              ids = {
+                  key: sorted(set(re.findall(pattern, text)))[:100]
+                  for key, pattern in {
+                      "collection_ids": r'collectionId[\\"\':= ]+([a-f0-9-]{32,36})',
+                      "view_ids": r'viewId[\\"\':= ]+([a-f0-9-]{32,36})',
+                      "space_ids": r'spaceId[\\"\':= ]+([a-f0-9-]{32,36})',
+                      "block_ids": r'blockId[\\"\':= ]+([a-f0-9-]{32,36})',
+                  }.items()
+              }
+
+              payload = json.dumps({
+                  "type": "block-space",
+                  "blockId": target["page_id"],
+                  "spaceDomain": "uttermost-pumpkin-971",
+                  "showMoveTo": False,
+                  "saveParent": False,
+                  "shouldDuplicate": False,
+                  "projectManagementLaunch": False,
+                  "requestedOnPublicDomain": True,
+              }).encode("utf-8")
+              api = request(
+                  "https://www.notion.so/api/v3/getPublicPageData",
+                  data=payload,
+                  method="POST",
+                  extra_headers={"Content-Type": "application/json", "Accept": "application/json"},
+              )
+              api_body = api.pop("body")
+              (dest / "getPublicPageData.json").write_bytes(api_body)
+              api_text = api_body.decode("utf-8", "replace")
+              api_addresses = sorted(set(x.lower() for x in re.findall(r"0x[a-fA-F0-9]{40}", api_text)))
+
+              result = {
+                  **target,
+                  "page": page,
+                  "page_bytes": len(body),
+                  "page_sha256": hashlib.sha256(body).hexdigest(),
+                  "title": re.sub(r"\\s+", " ", title_match.group(1)).strip() if title_match else None,
+                  "page_wallet_addresses": len(addresses),
+                  "page_wallet_address_sample": addresses[:20],
+                  "detected_ids": ids,
+                  "getPublicPageData": api,
+                  "getPublicPageData_bytes": len(api_body),
+                  "getPublicPageData_wallet_addresses": len(api_addresses),
+                  "getPublicPageData_wallet_address_sample": api_addresses[:20],
+              }
+              results.append(result)
+              (dest / "summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+              print(json.dumps(result, ensure_ascii=False), flush=True)
+
+          (out / "index.json").write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guaremperor-notion-probe
+          path: out-notion/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 9
