@@ -8,7 +8,7 @@ EXPLORERS=['https://robinhoodchain.blockscout.com/api','https://explorer.hoodmar
 RPCS=['https://rpc.mainnet.chain.robinhood.com','https://robinhood-rpc.publicnode.com','https://rpc-robinhood.hoodmarket.io']
 TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
 ZERO_TOPIC='0x'+'0'*64
-UA='DCF-RHC-Supply-Reconciliation/1.0 (read-only)'
+UA='DCF-RHC-Supply-Reconciliation/1.1 (read-only)'
 last=0.0
 
 def pace(seconds=1.2):
@@ -108,7 +108,7 @@ def main():
  for idx,c in enumerate(contracts,1):
   address=c['contract_address'].lower();sdq=int(float(c.get('seadrop_quantity') or 0));print(idx,len(contracts),address,flush=True)
   total,ts_source,ts_error=eth_call(address,'0x18160ddd',head)
-  supports721,si_source,si_error=eth_call(address,'0x01ffc9a7'+'0'*56+'80ac58cd',head)
+  supports721,si_source,si_error=eth_call(address,'0x01ffc9a7'+'80ac58cd'+'0'*56,head)
   mint_logs,mint_ranges,mint_errors=collect_logs(address,'topic1',head)
   burn_logs,burn_ranges,burn_errors=collect_logs(address,'topic2',head)
   mint_qty=len(mint_logs);burn_qty=len(burn_logs)
