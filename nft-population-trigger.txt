@@ -1,0 +1,1 @@
+Collect the complete ERC-721/ERC-1155 population and token lifecycle through a fixed finalized head.
