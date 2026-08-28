@@ -1,0 +1,60 @@
+name: RHC P1 exact evidence verification
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-p1-exact.yml'
+      - 'p1-exact/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-p1-exact-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Materialize fixed verifier and evidence input
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          gzip -dc p1-exact/verify.py.gz > runtime/verify.py
+          gzip -dc p1-exact/input.json.gz > runtime/input.json
+          python -m py_compile runtime/verify.py
+          python - <<'PY'
+          import json
+          data=json.load(open('runtime/input.json'))
+          assert data['chain_id']==4663
+          assert len(data['events'])==19
+          assert len(data['sale_groups'])==5
+          assert len(data['source_only_wallets'])==4
+          print({'events':19,'sale_groups':5,'source_only':4})
+          PY
+      - name: Verify exact P1 mint events and sale orders
+        shell: bash
+        run: python runtime/verify.py --input runtime/input.json --out out-p1-exact
+      - name: Preserve exact inputs and verifier
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out-p1-exact/runtime
+          cp runtime/verify.py runtime/input.json out-p1-exact/runtime/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-p1-exact
+          path: out-p1-exact/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
