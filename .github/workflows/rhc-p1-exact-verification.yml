@@ -35,8 +35,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p runtime
-          base64 -d p1-exact/collector.py.gz.b64 | gzip -d > runtime/collector.py
-          base64 -d p1-exact/wallets.json.gz.b64 | gzip -d > runtime/wallets-all.json
+          cat p1-exact/chunks/collector.part00 p1-exact/chunks/collector.part01 p1-exact/chunks/collector.part02 | base64 -d | gzip -d > runtime/collector.py
+          cat p1-exact/chunks/wallets.part00 p1-exact/chunks/wallets.part01 | base64 -d | gzip -d > runtime/wallets-all.json
+          echo '6c3be0d2336f3fe6b5ce4a67cf313c43dbaa5ef108ddb0083d620d940480f5d7  runtime/collector.py' | sha256sum -c -
+          echo 'a79cfa03297aaad2f475bd2de26d91407bc127e53e81e5d45e21a83425d56e40  runtime/wallets-all.json' | sha256sum -c -
           python -m py_compile runtime/collector.py
           python - <<'PY'
           import json, os
@@ -59,7 +61,8 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           mkdir -p "out-${SHARD}/runtime"
-          cp runtime/collector.py runtime/wallets.json runtime/wallets-all.json "out-${SHARD}/runtime/"
+          cp runtime/collector.py runtime/wallets-all.json "out-${SHARD}/runtime/" 2>/dev/null || true
+          cp runtime/wallets.json "out-${SHARD}/runtime/" 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
