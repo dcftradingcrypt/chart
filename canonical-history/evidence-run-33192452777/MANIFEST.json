@@ -1,0 +1,20 @@
+[
+  {
+    "target": "seadrop",
+    "event_rows": 13902,
+    "coverage_leaves": 30,
+    "shard_reports": 20,
+    "file": "seadrop_logs.jsonl.gz",
+    "bytes": 1119657,
+    "sha256": "3dc068ef14020eba051a1ea14931464580771e228783136bc7f28c49d640aca8"
+  },
+  {
+    "target": "seaport",
+    "event_rows": 0,
+    "coverage_leaves": 0,
+    "shard_reports": 20,
+    "file": "seaport_logs.jsonl.gz",
+    "bytes": 44,
+    "sha256": "2c9a40979bddd79d4f9c5682931b21c56b9802603967b7cae6db2e0de4aed5f4"
+  }
+]
