@@ -1,0 +1,59 @@
+name: RHC normalize complete NFT opportunity and market universe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-normalized-universe.yml'
+      - 'rhc-normalized-universe/**'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-normalized-universe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned ABI dependencies
+        run: python -m pip install --disable-pip-version-check --no-input eth-abi==5.2.0 eth-utils==5.3.1
+      - name: Wait for complete aggregates and normalize all events
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python rhc-normalized-universe/build_normalized.py
+      - name: Upload normalized evidence universe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-normalized-universe
+          path: rhc-normalized-universe-output/
+          retention-days: 10
+          if-no-files-found: error
+          compression-level: 9
+      - name: Commit normalization status and source IDs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rhc-normalized-universe-stage/
+          if git diff --cached --quiet; then
+            echo 'No normalization status changes.'
+          else
+            git commit -m 'data: record normalized RHC universe status [skip ci]'
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
