@@ -1,0 +1,1 @@
+Monitor the immutable evidence gates for P1c, P2, complete NFT contract universe, complete NFT transfer histories, canonical SeaDrop/Seaport logs, mint transaction enrichment, and Seaport transaction enrichment. DeepSeek handoff remains disabled.

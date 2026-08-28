@@ -1,0 +1,1 @@
+Monitor only the required evidence set: P1 recovery, P2 candidates, complete NFT contract universe, complete NFT mint-only history, complete fixed-head SeaDrop/Seaport histories, complete mint transaction enrichment, and complete Seaport transaction enrichment. DeepSeek handoff remains disabled.

@@ -1,0 +1,75 @@
+name: Cancel overbroad RHC collection jobs
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-cancel-overbroad-collection.yml'
+      - 'data-collection-monitor/TRIGGER_CANCEL_OVERBROAD.txt'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MONITOR_BRANCH: chatgpt/rhc-data-collection-monitor-20260829
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-data-collection-monitor-20260829
+          fetch-depth: 0
+      - name: Cancel only explicitly superseded overbroad jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data-collection-monitor/cancellations
+          python - <<'PY'
+          import datetime, json, os, subprocess, pathlib
+          repo=os.environ['GITHUB_REPOSITORY']
+          targets={
+            ('chatgpt/rhc-nft-contract-universe-20260829','RHC NFT contract details and full transfer histories'),
+            ('chatgpt/rhc-mint-tx-enrichment-20260829','RHC canonical mint transaction enrichment'),
+          }
+          def run(*args):
+            return subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+          results=[]
+          for branch,name in sorted(targets):
+            cp=run('gh','api','--paginate',f'/repos/{repo}/actions/runs?branch={branch}&per_page=100')
+            if cp.returncode:
+              results.append({'branch':branch,'workflow':name,'status':'QUERY_FAILED','error':cp.stderr[-2000:]})
+              continue
+            data=json.loads(cp.stdout)
+            matches=[r for r in data.get('workflow_runs',[]) if r.get('name')==name and r.get('status') in {'queued','in_progress','pending','waiting','requested'}]
+            for row in matches:
+              cancel=run('gh','api','-X','POST',f"/repos/{repo}/actions/runs/{row['id']}/cancel")
+              results.append({'branch':branch,'workflow':name,'run_id':row['id'],'prior_status':row.get('status'),'cancel_http_ok':cancel.returncode==0,'stdout':cancel.stdout[-1000:],'stderr':cancel.stderr[-1000:]})
+            if not matches:
+              results.append({'branch':branch,'workflow':name,'status':'NO_ACTIVE_RUN'})
+          report={'generated_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'reason':'SUPERSEDED_BY_MINT_ONLY_AND_SALE_ONLY_COLLECTION','results':results}
+          path=pathlib.Path('data-collection-monitor/cancellations/OVERBROAD_CANCELLATION.json')
+          path.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          if any(r.get('cancel_http_ok') is False for r in results):
+            raise SystemExit(1)
+          PY
+      - name: Persist cancellation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rhc-data-monitor'
+          git config user.email 'actions@users.noreply.github.com'
+          git add data-collection-monitor/cancellations/OVERBROAD_CANCELLATION.json
+          git commit -m 'data: record cancellation of superseded overbroad jobs'
+          for attempt in $(seq 1 10); do
+            git fetch origin "$MONITOR_BRANCH"
+            git rebase "origin/$MONITOR_BRANCH"
+            if git push origin "HEAD:$MONITOR_BRANCH"; then break; fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done

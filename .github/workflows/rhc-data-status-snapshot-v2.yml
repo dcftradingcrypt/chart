@@ -1,0 +1,93 @@
+name: Snapshot final RHC data collection status v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-data-status-snapshot-v2.yml'
+      - 'data-collection-monitor/TRIGGER_STATUS_V2.txt'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MONITOR_BRANCH: chatgpt/rhc-data-collection-monitor-20260829
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-data-collection-monitor-20260829
+          fetch-depth: 0
+      - name: Capture latest workflow and immutable evidence state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data-collection-monitor/snapshots
+          python - <<'PY'
+          import datetime,fnmatch,json,os,pathlib,subprocess
+          repo=os.environ['GITHUB_REPOSITORY']
+          specs=[
+            ('p1c','chatgpt/rhc-wallet-verification-p1c-20260829','wallet-verification-p1c/evidence-run-*/AGGREGATE_VALIDATION.json'),
+            ('p2','chatgpt/rhc-wallet-verification-p2-20260829','wallet-verification-p2/evidence-run-*/AGGREGATE_VALIDATION.json'),
+            ('universe','chatgpt/rhc-nft-contract-universe-20260829','nft-universe/evidence-run-*/VALIDATION.json'),
+            ('mint_history','chatgpt/rhc-nft-mint-history-20260829','nft-mint-history/evidence-run-*/AGGREGATE_VALIDATION.json'),
+            ('canonical','chatgpt/rhc-canonical-event-history-20260829','canonical-history/evidence-run-*/AGGREGATE_VALIDATION.json'),
+            ('mint_enrichment','chatgpt/rhc-mint-tx-enrichment-20260829','mint-enrichment/evidence-run-*/AGGREGATE_VALIDATION.json'),
+            ('seaport_enrichment','chatgpt/rhc-seaport-tx-enrichment-20260829','sale-enrichment/evidence-run-*/AGGREGATE_VALIDATION.json'),
+            ('minted_transfers','chatgpt/rhc-minted-contract-transfers-20260829','minted-contract-transfers/evidence-run-*/AGGREGATE_VALIDATION.json'),
+            ('secondary_enrichment','chatgpt/rhc-secondary-transfer-enrichment-20260829','secondary-enrichment/evidence-run-*/AGGREGATE_VALIDATION.json'),
+          ]
+          def cp(*args):return subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+          rows=[]
+          for ident,branch,pattern in specs:
+            ref='refs/remotes/snapshotv2/'+branch.replace('/','__')
+            fetch=cp('git','fetch','--force','--depth=1','origin',f'{branch}:{ref}')
+            row={'id':ident,'branch':branch,'branch_fetch_ok':fetch.returncode==0,'branch_error':fetch.stderr[-1500:] if fetch.returncode else None,'latest_workflows':[],'validation_path':None,'validation':None}
+            runs=cp('gh','api','--paginate',f'/repos/{repo}/actions/runs?branch={branch}&per_page=100')
+            if runs.returncode==0:
+              try:
+                data=json.loads(runs.stdout);seen=set()
+                for r in sorted(data.get('workflow_runs',[]),key=lambda x:x.get('created_at',''),reverse=True):
+                  name=r.get('name')
+                  if name in seen:continue
+                  seen.add(name)
+                  row['latest_workflows'].append({k:r.get(k) for k in ('id','name','event','status','conclusion','head_sha','created_at','updated_at')})
+              except Exception as exc:row['workflow_parse_error']=repr(exc)
+            else:row['workflow_query_error']=runs.stderr[-1500:]
+            if fetch.returncode==0:
+              tree=cp('git','ls-tree','-r','--name-only',ref)
+              if tree.returncode==0:
+                matches=sorted(path for path in tree.stdout.splitlines() if fnmatch.fnmatch(path,pattern))
+                if matches:
+                  path=matches[-1];row['validation_path']=path
+                  shown=cp('git','show',f'{ref}:{path}')
+                  if shown.returncode==0:
+                    try:row['validation']=json.loads(shown.stdout)
+                    except Exception as exc:row['validation_error']=repr(exc)
+            rows.append(row)
+          report={'generated_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'rows':rows,'deepseek_handoff_allowed':False,'production_approved_wallets':0}
+          path=pathlib.Path('data-collection-monitor/snapshots/LATEST_STATUS_V2.json')
+          path.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps({'rows':[{'id':row['id'],'latest':row['latest_workflows'][0] if row['latest_workflows'] else None,'gate':(row.get('validation') or {}).get('status'),'path':row.get('validation_path')} for row in rows]},sort_keys=True))
+          PY
+      - name: Commit status snapshot v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rhc-data-monitor'
+          git config user.email 'actions@users.noreply.github.com'
+          git add data-collection-monitor/snapshots/LATEST_STATUS_V2.json
+          git commit -m 'data: update final RHC collection status v2'
+          for attempt in $(seq 1 10);do
+            git fetch origin "$MONITOR_BRANCH"
+            git rebase "origin/$MONITOR_BRANCH"
+            if git push origin "HEAD:$MONITOR_BRANCH";then break;fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done

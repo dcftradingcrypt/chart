@@ -1,0 +1,1 @@
+Capture the latest status of all nine final raw-data gates and their current workflows.

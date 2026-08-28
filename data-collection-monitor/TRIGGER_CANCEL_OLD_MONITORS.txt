@@ -1,0 +1,1 @@
+Cancel the superseded monitor that waits for the deliberately removed all-transfer-history gate. Preserve the corrected required-data monitor.

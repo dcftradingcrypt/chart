@@ -1,0 +1,344 @@
+{
+  "status": "IN_PROGRESS",
+  "attempt": 1,
+  "checked_at_utc": "2026-08-28T17:38:16.207587+00:00",
+  "required_gate_count": 9,
+  "passed_gate_count": 0,
+  "checks": [
+    {
+      "id": "p1c_wallets",
+      "branch": "chatgpt/rhc-wallet-verification-p1c-20260829",
+      "status": "FAIL",
+      "validation_path": "wallet-verification-p1c/evidence-run-33191983338/AGGREGATE_VALIDATION.json",
+      "validation": {
+        "status": "FAIL",
+        "target_run_id": 33191983338,
+        "artifact_count": 5,
+        "unique_target_wallets": 5,
+        "failures": [
+          {
+            "artifact": "rhc-wallet-verification-p1c-0x43948bababa753a587fc475ced55c74760b716fc",
+            "target": {
+              "status": "FAIL",
+              "wallet": "0x43948bababa753a587fc475ced55c74760b716fc",
+              "failures": [
+                {
+                  "code": "KNOWN_TX_INDEX_MISMATCH",
+                  "found": "2",
+                  "expected": "3"
+                }
+              ],
+              "production_approved_wallets": 0
+            },
+            "collector": {
+              "address_nft_transfer_rows": 9236,
+              "address_transaction_rows": 3270,
+              "chain_id": 4663,
+              "decision_use": "P0_P1_CANONICAL_VERIFICATION_ONLY",
+              "error_count": 0,
+              "failures": [],
+              "known_mint_canonical_matches": 3,
+              "known_mint_expected": 3,
+              "known_mint_verified_rows": 3,
+              "known_sale_expected": 6,
+              "known_sale_receipt_matches": 6,
+              "known_sale_verified_rows": 6,
+              "p0_wallet_count": 1,
+              "production_approved_wallets": 0,
+              "source_head_block": 48457605,
+              "status": "PASS",
+              "wallet_count": 2
+            }
+          }
+        ],
+        "production_approved_wallets": 0,
+        "decision_use": "DATA_COLLECTION_ONLY"
+      },
+      "failures": [
+        {
+          "code": "STATUS_NOT_PASS",
+          "actual": "FAIL"
+        }
+      ]
+    },
+    {
+      "id": "p2_wallets",
+      "branch": "chatgpt/rhc-wallet-verification-p2-20260829",
+      "status": "FAIL",
+      "validation_path": "wallet-verification-p2/evidence-run-33191937519/AGGREGATE_VALIDATION.json",
+      "validation": {
+        "status": "FAIL",
+        "target_run_id": 33191937519,
+        "artifact_count": 16,
+        "p2_wallet_count_sum": 0,
+        "production_approved_wallets": 0,
+        "decision_use": "DATA_COLLECTION_ONLY",
+        "failures": [
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-0",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-0",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-1",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-1",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-2",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-2",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-3",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-3",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-4",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-4",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-5",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-5",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-6",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-6",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-7",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-7",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-8",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-8",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-9",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-9",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-10",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-10",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-11",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-11",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-12",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-12",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-13",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-13",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-14",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-14",
+            "collector": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-15",
+            "gate": {
+              "status": "MISSING"
+            }
+          },
+          {
+            "artifact": "rhc-wallet-verification-p2-fixed-15",
+            "collector": {
+              "status": "MISSING"
+            }
+          }
+        ]
+      },
+      "failures": [
+        {
+          "code": "STATUS_NOT_PASS",
+          "actual": "FAIL"
+        },
+        {
+          "code": "EXPECTED_VALUE_MISMATCH",
+          "key": "p2_wallet_count_sum",
+          "expected": 212,
+          "actual": 0
+        }
+      ]
+    },
+    {
+      "id": "nft_contract_universe",
+      "branch": "chatgpt/rhc-nft-contract-universe-20260829",
+      "status": "MISSING",
+      "validation_path": null,
+      "validation": null,
+      "failures": []
+    },
+    {
+      "id": "nft_mint_history",
+      "branch": "chatgpt/rhc-nft-mint-history-20260829",
+      "status": "MISSING",
+      "validation_path": null,
+      "validation": null,
+      "failures": []
+    },
+    {
+      "id": "canonical_event_history",
+      "branch": "chatgpt/rhc-canonical-event-history-20260829",
+      "status": "MISSING",
+      "validation_path": null,
+      "validation": null,
+      "failures": []
+    },
+    {
+      "id": "mint_transaction_enrichment",
+      "branch": "chatgpt/rhc-mint-tx-enrichment-20260829",
+      "status": "MISSING",
+      "validation_path": null,
+      "validation": null,
+      "failures": []
+    },
+    {
+      "id": "seaport_transaction_enrichment",
+      "branch": "chatgpt/rhc-seaport-tx-enrichment-20260829",
+      "status": "MISSING",
+      "validation_path": null,
+      "validation": null,
+      "failures": []
+    },
+    {
+      "id": "minted_contract_transfer_history",
+      "branch": "chatgpt/rhc-minted-contract-transfers-20260829",
+      "status": "MISSING",
+      "validation_path": null,
+      "validation": null,
+      "failures": []
+    },
+    {
+      "id": "secondary_transfer_enrichment",
+      "branch": "chatgpt/rhc-secondary-transfer-enrichment-20260829",
+      "status": "MISSING",
+      "validation_path": null,
+      "validation": null,
+      "failures": []
+    }
+  ],
+  "deepseek_handoff_allowed": false,
+  "production_approved_wallets": 0,
+  "decision_use": "FINAL_REQUIRED_RAW_DATA_GATES_V2"
+}
