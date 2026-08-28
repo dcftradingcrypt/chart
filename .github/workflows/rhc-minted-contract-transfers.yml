@@ -1,0 +1,213 @@
+name: RHC targeted transfer histories for minted NFT contracts
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-minted-contract-transfers.yml'
+      - 'minted-contract-transfers/collect.py'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: rhc-minted-contract-transfers-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    outputs:
+      fixed_head: ${{ steps.source.outputs.fixed_head }}
+      fixed_head_hash: ${{ steps.source.outputs.fixed_head_hash }}
+      source_run: ${{ steps.source.outputs.source_run }}
+      contract_count: ${{ steps.source.outputs.contract_count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-minted-contract-transfers-20260829
+          fetch-depth: 0
+      - id: source
+        name: Wait for complete mint-event universe and extract exact minted contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_branch='chatgpt/rhc-nft-mint-history-20260829'
+          validation_path=''
+          for attempt in $(seq 1 120); do
+            git fetch origin "$source_branch:refs/remotes/origin/rhc-minted-contract-source" --force
+            validation_path="$(git ls-tree -r --name-only refs/remotes/origin/rhc-minted-contract-source | grep '^nft-mint-history/evidence-run-.*/AGGREGATE_VALIDATION.json$' | sort -V | tail -1 || true)"
+            if [[ -n "$validation_path" ]]; then
+              status="$(git show "refs/remotes/origin/rhc-minted-contract-source:${validation_path}" | python -c 'import json,sys; print(json.load(sys.stdin).get("status"))')"
+              [[ "$status" == PASS ]] && break
+            fi
+            validation_path=''
+            sleep 120
+          done
+          [[ -n "$validation_path" ]] || { echo 'mint-event universe unavailable' >&2; exit 1; }
+          source_dir="${validation_path%/AGGREGATE_VALIDATION.json}"
+          source_run="${source_dir##*-}"
+          rm -rf prerequisite-mints
+          git worktree add --detach prerequisite-mints refs/remotes/origin/rhc-minted-contract-source
+          mkdir -p out-contract-index
+          cp "prerequisite-mints/${source_dir}/nft_mint_transfers.jsonl.gz" out-contract-index/
+          cp "prerequisite-mints/${source_dir}/AGGREGATE_VALIDATION.json" out-contract-index/SOURCE_VALIDATION.json
+          python - <<'PY'
+          import csv,gzip,json,pathlib
+          root=pathlib.Path('out-contract-index')
+          source=json.load(open(root/'SOURCE_VALIDATION.json'))
+          assert source['status']=='PASS',source
+          contracts=set()
+          with gzip.open(root/'nft_mint_transfers.jsonl.gz','rt',encoding='utf-8') as f:
+              for line in f:
+                  if not line.strip():continue
+                  row=json.loads(line);value=str(row.get('contract_address') or '').lower()
+                  if value.startswith('0x') and len(value)==42:contracts.add(value)
+          if not contracts:raise SystemExit('empty minted-contract set')
+          with (root/'minted_contracts.csv').open('w',newline='',encoding='utf-8-sig') as f:
+              w=csv.DictWriter(f,fieldnames=['contract_address']);w.writeheader();w.writerows({'contract_address':value} for value in sorted(contracts))
+          report={'status':'PASS','source_mint_history_rows':source['mint_transfer_rows'],'unique_minted_contracts':len(contracts),'fixed_head':source['fixed_head'],'fixed_head_hash':source['fixed_head_hash'],'production_approved_wallets':0,'decision_use':'MINTED_CONTRACT_TRANSFER_INDEX'}
+          (root/'CONTRACT_INDEX_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+          fixed_head="$(python -c 'import json;print(json.load(open("out-contract-index/CONTRACT_INDEX_VALIDATION.json"))["fixed_head"])')"
+          fixed_head_hash="$(python -c 'import json;print(json.load(open("out-contract-index/CONTRACT_INDEX_VALIDATION.json"))["fixed_head_hash"])')"
+          contract_count="$(python -c 'import json;print(json.load(open("out-contract-index/CONTRACT_INDEX_VALIDATION.json"))["unique_minted_contracts"])')"
+          echo "fixed_head=${fixed_head}" >> "$GITHUB_OUTPUT"
+          echo "fixed_head_hash=${fixed_head_hash}" >> "$GITHUB_OUTPUT"
+          echo "source_run=${source_run}" >> "$GITHUB_OUTPUT"
+          echo "contract_count=${contract_count}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rhc-minted-contract-index
+          path: |
+            out-contract-index/minted_contracts.csv
+            out-contract-index/CONTRACT_INDEX_VALIDATION.json
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
+
+  collect:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-minted-contract-index
+          path: input-index
+      - name: Collect complete transfers for one deterministic contract shard
+        run: |
+          python minted-contract-transfers/collect.py \
+            --contracts input-index/minted_contracts.csv \
+            --shard '${{ matrix.shard }}' \
+            --shard-count 32 \
+            --fixed-head '${{ needs.prepare.outputs.fixed_head }}' \
+            --fixed-head-hash '${{ needs.prepare.outputs.fixed_head_hash }}' \
+            --out out-transfers
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-minted-contract-transfers-${{ matrix.shard }}
+          path: out-transfers/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    if: always()
+    needs: [prepare, collect]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-minted-contract-transfers-20260829
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-minted-contract-index
+          path: input-index
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-minted-contract-transfers-*
+          path: downloaded-transfers
+          merge-multiple: false
+      - name: Validate complete contract coverage and create persistent shard bundles
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv,hashlib,json,pathlib,zipfile
+          root=pathlib.Path('downloaded-transfers');out=pathlib.Path('aggregate-transfers');out.mkdir(exist_ok=True)
+          source=json.load(open('input-index/CONTRACT_INDEX_VALIDATION.json'))
+          failures=[];manifest=[];summaries=[];seen=set()
+          for shard in range(32):
+              d=root/f'rhc-minted-contract-transfers-{shard}'
+              if not d.exists():failures.append({'code':'MISSING_SHARD','shard':shard});continue
+              vp=d/'VALIDATION.json'
+              if not vp.exists():failures.append({'code':'MISSING_VALIDATION','shard':shard});continue
+              vr=json.loads(vp.read_text())
+              if vr.get('status')!='PASS':failures.append({'code':'SHARD_NOT_PASS','shard':shard,'validation':vr})
+              p=d/'contract_transfer_summary.csv'
+              if not p.exists():failures.append({'code':'MISSING_SUMMARY','shard':shard});continue
+              with p.open(newline='',encoding='utf-8-sig') as f:
+                  for row in csv.DictReader(f):
+                      address=row.get('contract_address','').lower()
+                      if address in seen:failures.append({'code':'DUPLICATE_CONTRACT','contract':address})
+                      seen.add(address);row['_shard']=shard;summaries.append(row)
+              zpath=out/f'rhc-minted-contract-transfers-{shard}.zip'
+              with zipfile.ZipFile(zpath,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+                  for file in sorted(d.rglob('*')):
+                      if file.is_file():z.write(file,file.relative_to(d))
+              manifest.append({'shard':shard,'validation_status':vr.get('status'),'selected_contracts':vr.get('selected_contracts'),'complete_contracts':vr.get('complete_contracts'),'all_transfer_rows':vr.get('all_transfer_rows'),'secondary_transfer_rows':vr.get('secondary_transfer_rows'),'zip_file':zpath.name,'zip_bytes':zpath.stat().st_size,'zip_sha256':hashlib.sha256(zpath.read_bytes()).hexdigest()})
+          expected=int(source['unique_minted_contracts'])
+          if len(seen)!=expected:failures.append({'code':'CONTRACT_COVERAGE_MISMATCH','expected':expected,'actual':len(seen)})
+          fields=[];field_seen=set()
+          for row in summaries:
+              for key in row:
+                  if key not in field_seen:field_seen.add(key);fields.append(key)
+          with (out/'contract_transfer_summary.csv').open('w',newline='',encoding='utf-8-sig') as f:
+              w=csv.DictWriter(f,fieldnames=fields or ['empty']);w.writeheader();w.writerows(summaries)
+          report={'status':'PASS' if not failures else 'FAIL','source_mint_history_run':'${{ needs.prepare.outputs.source_run }}','artifact_count':len(manifest),'minted_contracts_expected':expected,'minted_contracts_covered':len(seen),'all_transfer_rows':sum(int(m.get('all_transfer_rows') or 0) for m in manifest),'secondary_transfer_rows':sum(int(m.get('secondary_transfer_rows') or 0) for m in manifest),'failure_count':len(failures),'failures':failures,'production_approved_wallets':0,'decision_use':'TOKEN_PROVENANCE_AND_NON_SEAPORT_SALE_DISCOVERY'}
+          (out/'ARTIFACT_MANIFEST.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
+          (out/'AGGREGATE_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Commit targeted transfer evidence to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="minted-contract-transfers/evidence-run-${GITHUB_RUN_ID}"
+          rm -rf "$dest";mkdir -p "$dest"
+          cp aggregate-transfers/* input-index/CONTRACT_INDEX_VALIDATION.json "$dest/"
+          git config user.name 'rhc-data-collector'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$dest"
+          git commit -m "data: persist targeted minted-contract transfers run ${GITHUB_RUN_ID}"
+          for attempt in $(seq 1 10);do
+            git fetch origin chatgpt/rhc-minted-contract-transfers-20260829
+            git rebase origin/chatgpt/rhc-minted-contract-transfers-20260829
+            if git push origin HEAD:chatgpt/rhc-minted-contract-transfers-20260829;then break;fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done
+      - name: Enforce aggregate after persistence
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('aggregate-transfers/AGGREGATE_VALIDATION.json'))
+          assert d['status']=='PASS',d
+          assert d['minted_contracts_covered']==d['minted_contracts_expected'],d
+          PY
