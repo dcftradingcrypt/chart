@@ -1,0 +1,118 @@
+name: RHC canonical NFT data v2 derive core datasets
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-data-v2-derive.yml'
+      - 'rhc-data-v2/**'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: rhc-data-v2-derive-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Wait for matching v2 collection run and download every artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import io,json,os,pathlib,time,urllib.parse,urllib.request,zipfile
+          token=os.environ['GH_TOKEN']; repo=os.environ['REPO']; sha=os.environ['HEAD_SHA']; branch=os.environ['HEAD_BRANCH']
+          headers={'accept':'application/vnd.github+json','authorization':f'Bearer {token}','user-agent':'RHC-V2-Derive/1.0','x-github-api-version':'2022-11-28'}
+          def get(url):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req,timeout=120) as response: return json.loads(response.read())
+          run=None
+          for attempt in range(600):
+              url=(f'https://api.github.com/repos/{repo}/actions/workflows/rhc-data-completion-v2.yml/runs?'
+                   f'event=pull_request&branch={urllib.parse.quote(branch)}&per_page=40')
+              matches=[value for value in get(url).get('workflow_runs',[]) if value.get('head_sha')==sha]
+              if matches:
+                  run=sorted(matches,key=lambda value:value['id'],reverse=True)[0]
+                  if attempt % 5 == 0: print({'run_id':run['id'],'status':run['status'],'conclusion':run.get('conclusion')},flush=True)
+                  if run['status']=='completed': break
+              time.sleep(30)
+          if not run or run.get('status')!='completed': raise SystemExit('matching v2 collection did not complete')
+          pathlib.Path('input').mkdir(exist_ok=True)
+          pathlib.Path('out-core').mkdir(exist_ok=True)
+          artifacts=get(f'https://api.github.com/repos/{repo}/actions/runs/{run["id"]}/artifacts?per_page=100').get('artifacts',[])
+          required={'rhc-v2-contract-population'} | {f'rhc-v2-discovery-{name}' for name in ['seadrop','seaport','erc721_mint','erc1155_single_mint','erc1155_batch_mint','erc2309_mint']} | {f'rhc-v2-transfers-{i}' for i in range(16)} | {f'rhc-v2-enrich-{i}' for i in range(32)}
+          names={value['name'] for value in artifacts}
+          missing=sorted(required-names)
+          (pathlib.Path('out-core')/'SOURCE_RUN.json').write_text(json.dumps({'run_id':run['id'],'head_sha':sha,'run_conclusion':run.get('conclusion'),'artifact_names':sorted(names),'missing_required_artifacts':missing},indent=2,sort_keys=True))
+          for artifact in artifacts:
+              if artifact['name'] not in required: continue
+              req=urllib.request.Request(artifact['archive_download_url'],headers=headers)
+              with urllib.request.urlopen(req,timeout=600) as response: payload=response.read()
+              destination=pathlib.Path('input')/artifact['name']; destination.mkdir(parents=True,exist_ok=True)
+              with zipfile.ZipFile(io.BytesIO(payload)) as archive: archive.extractall(destination)
+              print({'artifact':artifact['name'],'bytes':len(payload)},flush=True)
+          if missing: raise SystemExit(json.dumps({'code':'MISSING_V2_ARTIFACTS','missing':missing}))
+          PY
+      - name: Derive project, sale, wallet-entry, and Selection Alpha datasets
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=rhc-data-v2 python rhc-data-v2/derive_core.py --input-root input --out out-core
+      - name: Package and publish core data result
+        if: always()
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p .results
+          python - <<'PY'
+          import hashlib,json,os,pathlib,shutil,zipfile
+          source=pathlib.Path('out-core')
+          archive=pathlib.Path('.results/rhc-v2-core-datasets.zip')
+          if archive.exists(): archive.unlink()
+          with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as output:
+              if source.exists():
+                  for path in sorted(source.rglob('*')):
+                      if path.is_file(): output.write(path,path.relative_to(source.parent))
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          index={'package':archive.name,'bytes':archive.stat().st_size,'sha256':digest,'publisher_run_id':int(os.environ['GITHUB_RUN_ID']),'files':[str(path.relative_to(source)) for path in sorted(source.rglob('*')) if path.is_file()] if source.exists() else []}
+          pathlib.Path('.results/rhc-v2-core-index.json').write_text(json.dumps(index,indent=2,sort_keys=True))
+          pathlib.Path('.results/rhc-v2-core-datasets.zip.sha256').write_text(digest+'  '+archive.name+'\n')
+          for name in ('VALIDATION.json','REMEDIATION.json','SOURCE_RUN.json'):
+              path=source/name
+              if path.exists(): shutil.copy2(path,pathlib.Path('.results')/f'rhc-v2-core-{name.lower()}')
+          if archive.stat().st_size > 90_000_000: raise SystemExit('core package exceeds GitHub file limit')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .results/
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'chore: publish canonical RHC core datasets [skip ci]'
+          git push origin "HEAD:${HEAD_BRANCH}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-v2-core-datasets
+          path: out-core/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 9
