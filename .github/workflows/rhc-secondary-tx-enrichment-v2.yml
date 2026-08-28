@@ -1,0 +1,73 @@
+name: RHC enrich every secondary NFT transfer transaction v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-secondary-tx-enrichment-v2.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: rhc-secondary-tx-enrichment-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enrich:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Materialize and compile v2 source binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('rhc-secondary-tx-enrichment/collect_shard.py').read_text(encoding='utf-8')
+          replacements = {
+              'SOURCE_WORKFLOW = "RHC aggregate complete token-level NFT transfer histories"':
+                  'SOURCE_WORKFLOW = "RHC aggregate complete token-level NFT transfer histories v2"',
+              'SOURCE_ARTIFACT = "rhc-token-transfer-aggregate"':
+                  'SOURCE_ARTIFACT = "rhc-token-transfer-aggregate-v2"',
+          }
+          for old, new in replacements.items():
+              if source.count(old) != 1:
+                  raise SystemExit(f'expected one patch target: {old}')
+              source = source.replace(old, new)
+          Path('runtime/collect_shard.py').write_text(source, encoding='utf-8')
+          PY
+          python -m py_compile runtime/collect_shard.py
+          sha256sum rhc-secondary-tx-enrichment/collect_shard.py runtime/collect_shard.py > runtime/COLLECTOR_SHA256SUMS.txt
+      - name: Enrich deterministic nonzero-to-nonzero transfer shard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python runtime/collect_shard.py \
+            --shard '${{ matrix.shard }}' \
+            --out 'out-secondary-${{ matrix.shard }}'
+      - name: Preserve patched collector
+        if: always()
+        run: |
+          mkdir -p out-secondary-${{ matrix.shard }}/runtime
+          cp runtime/collect_shard.py runtime/COLLECTOR_SHA256SUMS.txt out-secondary-${{ matrix.shard }}/runtime/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-secondary-tx-enrichment-v2-${{ matrix.shard }}
+          path: out-secondary-${{ matrix.shard }}/
+          retention-days: 10
+          if-no-files-found: error
+          compression-level: 9
