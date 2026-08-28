@@ -1,0 +1,80 @@
+name: RHC P2 exact evidence verification
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-p2-exact-verification.yml'
+      - 'p2-exact/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-p2-exact-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [s00, s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, s21, s22, s23]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Materialize exact collector and fixed P2 shard
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          base64 -d p2-exact/collector.py.gz.b64 | gzip -d > runtime/collector.py
+          cat p2-exact/chunks/wallets.part00 p2-exact/chunks/wallets.part01 p2-exact/chunks/wallets.part02 p2-exact/chunks/wallets.part03 p2-exact/chunks/wallets.part04 p2-exact/chunks/wallets.part05 p2-exact/chunks/wallets.part06 p2-exact/chunks/wallets.part07 | base64 -d | gzip -d > runtime/wallets-all.json
+          echo '6c3be0d2336f3fe6b5ce4a67cf313c43dbaa5ef108ddb0083d620d940480f5d7  runtime/collector.py' | sha256sum -c -
+          echo 'd4c519d293de7bbe45fb05ad8329f3b06cbcc9f3c174605eddfa4ce3f47ac52b  runtime/wallets-all.json' | sha256sum -c -
+          python -m py_compile runtime/collector.py
+          python - <<'PY'
+          import json, os
+          rows=json.load(open('runtime/wallets-all.json'))
+          assert len(rows)==212
+          shard=int(os.environ['SHARD'][1:])
+          size=9
+          selected=rows[shard*size:(shard+1)*size]
+          assert selected
+          json.dump(selected,open('runtime/wallets.json','w'),indent=2)
+          print({
+            'shard':os.environ['SHARD'],
+            'wallets':len(selected),
+            'mints':sum(len(x.get('known_mints') or []) for x in selected),
+            'sale_tokens':sum(len(x.get('known_sales') or []) for x in selected),
+          })
+          PY
+      - name: Verify exact canonical evidence
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: python runtime/collector.py --input runtime/wallets.json --out "out-${SHARD}"
+      - name: Preserve fixed inputs and collector
+        if: always()
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          mkdir -p "out-${SHARD}/runtime"
+          cp runtime/collector.py runtime/wallets.json runtime/wallets-all.json "out-${SHARD}/runtime/" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-p2-exact-${{ matrix.shard }}
+          path: out-${{ matrix.shard }}/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
