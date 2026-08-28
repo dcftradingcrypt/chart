@@ -1,0 +1,45 @@
+name: RHC candidate wallet canonical NFT transfers v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-candidate-wallet-canonical-transfers-v2.yml'
+      - 'canonical-completion/run_corrected.py'
+      - 'canonical-completion/candidate_wallet_collector.py'
+      - 'wallet-verification/p2_addresses.txt'
+      - 'wallet-verification/wallets.json.gz.b64'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-candidate-wallet-canonical-transfers-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check --no-input pycryptodome==3.23.0
+      - name: Collect corrected canonical wallet NFT histories
+        run: python canonical-completion/run_corrected.py --kind candidate -- --shard '${{ matrix.shard }}' --shard-count 16 --out 'out-wallet-${{ matrix.shard }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-canonical-wallet-transfers-v2-${{ matrix.shard }}
+          path: out-wallet-${{ matrix.shard }}/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
