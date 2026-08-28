@@ -1,0 +1,209 @@
+name: RHC P0 exact evidence verification
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-p0-fast.yml'
+      - 'p0-fast/**'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify P0 mint, sale, payment, and token provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out-p0-fast/raw
+          python - <<'PY'
+          import hashlib, json, pathlib, random, time, urllib.error, urllib.parse, urllib.request
+
+          OUT=pathlib.Path('out-p0-fast')
+          RAW=OUT/'raw'
+          RPC='https://rpc.mainnet.chain.robinhood.com'
+          EXPLORERS=['https://robinhoodchain.blockscout.com','https://explorer.hoodmarketcap.com']
+          UA='RHC-P0-Exact-Evidence/1.0'
+          ZERO='0x'+'0'*40
+          TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+          SEADROP='0xe90cf9cc0a552cf52ea6ff74ece0f1c8ae8cc9ad630d3181f55ac43ca076b7d6'
+          ORDER='0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31'
+          WALLET='0x76d387388bea6b60ca6d1e97f446f7e26d39d313'
+          MINT_TX='0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23'
+          MINT_CONTRACT='0x797a0889718c30060fc797659328590e86041fbd'
+          MINT_PRICE=170000000000000
+          SALE_TX='0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b'
+          SALE_CONTRACT='0x66007297055229066d86294a18edb6e1a2db32d7'
+          SALE_TOKEN=1692
+          SALE_BUYER='0xbbc7974b1d4b353b2557382ac543dfdab7846026'
+          last=0.0
+
+          def pace():
+              global last
+              wait=.18-(time.monotonic()-last)
+              if wait>0: time.sleep(wait)
+
+          def request(url,data=None,headers=None,attempts=5):
+              global last
+              h={'User-Agent':UA,'Accept':'application/json'}
+              if headers: h.update(headers)
+              err=None
+              for n in range(attempts):
+                  pace()
+                  try:
+                      req=urllib.request.Request(url,data=data,headers=h,method='POST' if data is not None else 'GET')
+                      with urllib.request.urlopen(req,timeout=45) as r:
+                          body=r.read(); last=time.monotonic(); return r.status,body
+                  except urllib.error.HTTPError as e:
+                      body=e.read(); last=time.monotonic()
+                      if e.code in (400,401,403,404): return e.code,body
+                      err=e
+                  except Exception as e: err=e
+                  if n+1<attempts: time.sleep(min(15,2**n+random.random()))
+              raise RuntimeError(f'{url}: {err!r}')
+
+          def rpc(method,params):
+              body=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode()
+              status,raw=request(RPC,body,{'Content-Type':'application/json'})
+              data=json.loads(raw)
+              if status!=200 or data.get('error'): raise RuntimeError(f'RPC {method}: {status} {data}')
+              return data.get('result')
+
+          def get_json(url,params=None):
+              if params: url += ('&' if '?' in url else '?')+urllib.parse.urlencode(params)
+              status,raw=request(url)
+              try: data=json.loads(raw.decode())
+              except Exception: data={'raw':raw.decode('utf-8','replace')[:2000]}
+              return status,data,url
+
+          def integer(v,default=0):
+              try: return int(v,16) if isinstance(v,str) and v.startswith('0x') else int(v)
+              except Exception: return default
+
+          def addr(v):
+              if isinstance(v,dict): v=v.get('hash') or v.get('address') or v.get('address_hash')
+              return str(v).lower() if isinstance(v,str) and v.startswith('0x') and len(v)==42 else None
+
+          def transfer_logs(receipt):
+              out=[]
+              for log in (receipt or {}).get('logs') or []:
+                  topics=[str(x).lower() for x in log.get('topics') or []]
+                  if not topics or topics[0]!=TRANSFER or len(topics)<3: continue
+                  frm='0x'+topics[1][-40:]; to='0x'+topics[2][-40:]
+                  if len(topics)>=4:
+                      out.append({'contract':addr(log.get('address')),'standard':'ERC721','from':frm,'to':to,'token_id':str(integer(topics[3])),'amount':1,'log_index':integer(log.get('logIndex'))})
+                  else:
+                      out.append({'contract':addr(log.get('address')),'standard':'ERC20','from':frm,'to':to,'token_id':None,'amount':integer(log.get('data')),'log_index':integer(log.get('logIndex'))})
+              return out
+
+          def seadrop_logs(receipt):
+              out=[]
+              for log in (receipt or {}).get('logs') or []:
+                  topics=[str(x).lower() for x in log.get('topics') or []]
+                  if not topics or topics[0]!=SEADROP or len(topics)<4: continue
+                  data=str(log.get('data') or '0x')[2:]
+                  words=[data[i:i+64] for i in range(0,len(data),64) if len(data[i:i+64])==64]
+                  if len(words)<5: continue
+                  out.append({'nft_contract':'0x'+topics[1][-40:],'minter':'0x'+topics[2][-40:],'fee_recipient':'0x'+topics[3][-40:],'payer':'0x'+words[0][-40:],'quantity':int(words[1],16),'unit_price_wei':int(words[2],16),'fee_bps':int(words[3],16),'stage':int(words[4],16),'log_index':integer(log.get('logIndex'))})
+              return out
+
+          def bundle(txh):
+              tx=rpc('eth_getTransactionByHash',[txh]); receipt=rpc('eth_getTransactionReceipt',[txh])
+              block=rpc('eth_getBlockByNumber',[receipt['blockNumber'],False]) if receipt else None
+              internal=[]; rest=[]
+              for base in EXPLORERS:
+                  status,data,url=get_json(f'{base}/api/v2/transactions/{txh}/internal-transactions')
+                  rest.append({'url':url,'status':status,'data':data})
+                  items=data.get('items') if isinstance(data,dict) else data
+                  if status==200 and isinstance(items,list) and items: internal=items; break
+              return {'tx':tx,'receipt':receipt,'block':block,'internal':internal,'rest_internal':rest}
+
+          def lifecycle(contract,token_id):
+              topic='0x'+hex(int(token_id))[2:].rjust(64,'0')
+              errors=[]
+              try:
+                  rows=rpc('eth_getLogs',[{'fromBlock':'0x0','toBlock':'latest','address':contract,'topics':[TRANSFER,None,None,topic]}])
+                  if isinstance(rows,list): return rows,{'source':'OFFICIAL_RPC','complete':True,'errors':errors}
+              except Exception as e: errors.append(repr(e))
+              for base in EXPLORERS:
+                  status,data,url=get_json(f'{base}/api',{'module':'logs','action':'getLogs','fromBlock':0,'toBlock':'latest','address':contract,'topic0':TRANSFER,'topic3':topic,'topic0_3_opr':'and'})
+                  rows=data.get('result') if isinstance(data,dict) else None
+                  if status==200 and isinstance(rows,list) and rows:
+                      return rows,{'source':base,'complete':len(rows)<1000,'url':url,'errors':errors}
+                  errors.append({'url':url,'status':status,'data':data})
+              return [],{'source':None,'complete':False,'errors':errors}
+
+          chain_id=integer(rpc('eth_chainId',[])); head=integer(rpc('eth_blockNumber',[]))
+          mint=bundle(MINT_TX); sale=bundle(SALE_TX)
+          (RAW/'mint_bundle.json').write_text(json.dumps(mint,indent=2,sort_keys=True))
+          (RAW/'sale_bundle.json').write_text(json.dumps(sale,indent=2,sort_keys=True))
+
+          mint_receipt=mint['receipt'] or {}; mint_transfers=transfer_logs(mint_receipt); mint_sd=seadrop_logs(mint_receipt)
+          mint_nfts=[x for x in mint_transfers if x['standard']=='ERC721' and x['contract']==MINT_CONTRACT and x['from']==ZERO and x['to']==WALLET]
+          mint_event=[x for x in mint_sd if x['nft_contract']==MINT_CONTRACT and x['minter']==WALLET and x['payer']==WALLET and x['quantity']==1 and x['unit_price_wei']==MINT_PRICE and x['stage']==0]
+          minted_token_ids=[x['token_id'] for x in mint_nfts]
+
+          sale_receipt=sale['receipt'] or {}; sale_transfers=transfer_logs(sale_receipt)
+          sold=[x for x in sale_transfers if x['standard']=='ERC721' and x['contract']==SALE_CONTRACT and x['token_id']==str(SALE_TOKEN) and x['from']==WALLET and x['to']==SALE_BUYER]
+          order_logs=[log for log in sale_receipt.get('logs') or [] if (log.get('topics') or [''])[0].lower()==ORDER]
+          erc20_to_seller=[x for x in sale_transfers if x['standard']=='ERC20' and x['to']==WALLET and x['amount']>0]
+          native_to_seller=[]
+          for item in sale.get('internal') or []:
+              value=integer(item.get('value',{}).get('value') if isinstance(item.get('value'),dict) else item.get('value'))
+              if addr(item.get('to'))==WALLET and value>0: native_to_seller.append({'from':addr(item.get('from')),'value_wei':value})
+
+          life,life_meta=lifecycle(SALE_CONTRACT,SALE_TOKEN)
+          life_rows=[]
+          for log in life:
+              topics=[str(x).lower() for x in log.get('topics') or []]
+              if len(topics)>=4:
+                  life_rows.append({'block_number':integer(log.get('blockNumber') or log.get('block_number')),'tx_hash':str(log.get('transactionHash') or log.get('transaction_hash') or '').lower(),'log_index':integer(log.get('logIndex') or log.get('log_index')),'from':'0x'+topics[1][-40:],'to':'0x'+topics[2][-40:]})
+          life_rows.sort(key=lambda x:(x['block_number'],x['log_index']))
+          prior=[x for x in life_rows if x['to']==WALLET and x['tx_hash']!=SALE_TX]
+          acquisition=prior[-1] if prior else None
+          acquisition_bundle=None; acquisition_route='UNRESOLVED'
+          if acquisition:
+              acquisition_bundle=bundle(acquisition['tx_hash'])
+              (RAW/'acquisition_bundle.json').write_text(json.dumps(acquisition_bundle,indent=2,sort_keys=True))
+              acquisition_route='PRIMARY_MINT' if acquisition['from']==ZERO else 'SECONDARY_OR_TRANSFER'
+
+          mint_verified=integer(mint_receipt.get('status'))==1 and len(mint_event)==1 and len(mint_nfts)==1
+          sale_verified=integer(sale_receipt.get('status'))==1 and len(sold)==1 and len(order_logs)>=1
+          payment_proven=bool(erc20_to_seller or native_to_seller)
+          report={
+              'chain_id':chain_id,'source_head_block':head,'wallet':WALLET,
+              'mint':{'tx_hash':MINT_TX,'contract':MINT_CONTRACT,'receipt_status':integer(mint_receipt.get('status')),'block_number':integer(mint_receipt.get('blockNumber')),'block_hash':mint_receipt.get('blockHash'),'seadrop_matches':mint_event,'zero_address_transfers':mint_nfts,'minted_token_ids':minted_token_ids,'verified':mint_verified},
+              'sale':{'tx_hash':SALE_TX,'contract':SALE_CONTRACT,'token_id':str(SALE_TOKEN),'receipt_status':integer(sale_receipt.get('status')),'block_number':integer(sale_receipt.get('blockNumber')),'block_hash':sale_receipt.get('blockHash'),'seller_to_buyer_transfers':sold,'order_fulfilled_log_count':len(order_logs),'erc20_payments_to_seller':erc20_to_seller,'native_payments_to_seller':native_to_seller,'payment_proven':payment_proven,'verified':sale_verified},
+              'sale_token_provenance':{'lifecycle_source':life_meta,'transfers':life_rows,'prior_acquisition':acquisition,'acquisition_route':acquisition_route},
+              'classification':{'selection_alpha_status':'LOW_SAMPLE_ONE_STRICT_PAID_PROJECT','execution_alpha_status':'UNRELATED_SECONDARY_SALE_REQUIRES_ACQUISITION_COST','copy_alpha_status':'NOT_EVALUATED','strength_status':'NOT_ESTABLISHED','production_approved':False},
+          }
+          failures=[]
+          if chain_id!=4663: failures.append('WRONG_CHAIN')
+          if not mint_verified: failures.append('MINT_NOT_VERIFIED')
+          if not sale_verified: failures.append('SALE_NOT_VERIFIED')
+          report['validation']={'status':'PASS' if not failures else 'FAIL','failures':failures,'seller_payment_proven':payment_proven,'acquisition_resolved':acquisition is not None}
+          (OUT/'P0_FINDING.json').write_text(json.dumps(report,indent=2,sort_keys=True))
+          manifest=[]
+          for path in sorted(OUT.rglob('*')):
+              if path.is_file(): manifest.append({'path':str(path.relative_to(OUT)),'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+          (OUT/'MANIFEST.json').write_text(json.dumps(manifest,indent=2,sort_keys=True))
+          print(json.dumps(report['validation'],sort_keys=True))
+          if failures: raise SystemExit(1)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-p0-fast-verification
+          path: out-p0-fast/
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 9
