@@ -1,0 +1,100 @@
+name: RHC P1c missing wallet recovery
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-p1c-missing.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Materialize collector and exact two-wallet input
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          base64 -d wallet-verification/collector.py.gz.b64 | gzip -d > runtime/collector.py
+          python -m py_compile runtime/collector.py
+          python - <<'PY'
+          import json
+          rows = [
+            {
+              'wallet': '0x76d387388bea6b60ca6d1e97f446f7e26d39d313',
+              'priority': 'P0',
+              'priority_points': 11,
+              'verification_reasons': ['ONCHAIN_PAID_PRIMARY_ACTIVITY','STRICT_V04_PAID_PROJECT_ACTIVITY','RECENT_SECONDARY_MARKET_ACTIVITY'],
+              'known_mints': [{
+                'tx_hash':'0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23',
+                'block_number':46802320,'log_index':45,
+                'contract':'0x797a0889718c30060fc797659328590e86041fbd','collection_name':'Robin Club',
+                'minter':'0x76d387388bea6b60ca6d1e97f446f7e26d39d313','payer':'0x76d387388bea6b60ca6d1e97f446f7e26d39d313',
+                'quantity':1,'unit_mint_price_wei':170000000000000,'drop_stage_index':0,'timestamp_utc':'2026-08-26T18:31:03Z'
+              }],
+              'known_sales': [{
+                'tx_hash':'0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b',
+                'contract':'0x66007297055229066d86294a18edb6e1a2db32d7','collection_name':'MiNi BRoKER #1692','token_id':'1692',
+                'buyer':'0xbbc7974b1d4b353b2557382ac543dfdab7846026','seller':'0x76d387388bea6b60ca6d1e97f446f7e26d39d313',
+                'price_native':'0.0007','timestamp_utc':'2026-08-26T18:57:25Z','source_sale_status':'SOURCE_REPORTED_NOT_RECEIPT_VERIFIED'
+              }]
+            },
+            {
+              'wallet':'0x6ee629e39bec31856fe1fb34e84cb7ef8114b1d4',
+              'priority':'P1','priority_points':7,
+              'verification_reasons':['ONCHAIN_PAID_PRIMARY_ACTIVITY','MULTIPLE_SOURCE_REPORTED_PAID_COLLECTIONS'],
+              'known_mints':[{ 
+                'tx_hash':'0x0098561274910aa58f30cfea9384bb21bf9712c247a06f95cd3e456e2f74dc0f',
+                'block_number':46809277,'log_index':83,
+                'contract':'0xc5d4caf5224f252bde80fbe12acbac6b12b34a3b','collection_name':'9 LIVES',
+                'minter':'0x6ee629e39bec31856fe1fb34e84cb7ef8114b1d4','payer':'0x6ee629e39bec31856fe1fb34e84cb7ef8114b1d4',
+                'quantity':1,'unit_mint_price_wei':200000000000000,'drop_stage_index':0,'timestamp_utc':'2026-08-26T18:42:37Z'
+              }],
+              'known_sales':[]
+            }
+          ]
+          open('runtime/wallets.json','w').write(json.dumps(rows,indent=2))
+          PY
+      - name: Recover canonical evidence
+        run: python runtime/collector.py --wallets runtime/wallets.json --out out-wallet-verification
+      - name: Require missing wallet evidence
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv,json
+          v=json.load(open('out-wallet-verification/VALIDATION.json'))
+          rows=list(csv.DictReader(open('out-wallet-verification/wallet_summary.csv',encoding='utf-8-sig')))
+          errors=list(csv.DictReader(open('out-wallet-verification/errors.csv',encoding='utf-8-sig')))
+          target=[r for r in rows if r['wallet']=='0x6ee629e39bec31856fe1fb34e84cb7ef8114b1d4']
+          failures=[]
+          if v.get('status')!='PASS': failures.append({'code':'UPSTREAM_NOT_PASS'})
+          if errors: failures.append({'code':'ERROR_ROWS','count':len(errors)})
+          if len(target)!=1: failures.append({'code':'TARGET_SUMMARY_MISSING'})
+          elif int(float(target[0].get('nft_history_rows') or 0))<=0: failures.append({'code':'TARGET_NFT_HISTORY_EMPTY'})
+          report={'status':'PASS' if not failures else 'FAIL','failures':failures,'production_approved_wallets':0}
+          json.dump(report,open('out-wallet-verification/P1C_RECOVERY_GATE.json','w'),indent=2)
+          print(report)
+          if failures: raise SystemExit(1)
+          PY
+      - name: Preserve inputs
+        if: always()
+        run: |
+          mkdir -p out-wallet-verification/runtime
+          cp runtime/collector.py runtime/wallets.json out-wallet-verification/runtime/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-wallet-verification-p1c-recovered
+          path: out-wallet-verification/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
