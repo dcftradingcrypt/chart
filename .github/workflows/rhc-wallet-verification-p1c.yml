@@ -1,0 +1,105 @@
+name: RHC wallet verification P1c recovery
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-wallet-verification-p1c.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        wallet:
+          - '0x51e99a26a3b538a4023e0e1af16e97153056a814'
+          - '0x121a5da145cd6dbe322d75c514481d2efa188816'
+          - '0x204a9d05e454619bf713b947c3e87302f4509d3c'
+          - '0x43948bababa753a587fc475ced55c74760b716fc'
+          - '0x6ee78170825f65a2bd9cf9cda48ce2282496ddba'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Materialize collector and exact wallet pair
+        shell: bash
+        env:
+          TARGET_WALLET: ${{ matrix.wallet }}
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          curl --fail --location --retry 5 --retry-all-errors \
+            'https://raw.githubusercontent.com/dcftradingcrypt/chart/chatgpt/rhc-wallet-verification-p0p1-20260828/wallet-verification/collector.py.gz.b64' \
+            -o runtime/collector.py.gz.b64
+          curl --fail --location --retry 5 --retry-all-errors \
+            'https://raw.githubusercontent.com/dcftradingcrypt/chart/chatgpt/rhc-wallet-verification-p0p1-20260828/wallet-verification/wallets.json.gz.b64' \
+            -o runtime/wallets-all.json.gz.b64
+          base64 -d runtime/collector.py.gz.b64 | gzip -d > runtime/collector.py
+          base64 -d runtime/wallets-all.json.gz.b64 | gzip -d > runtime/wallets-all.json
+          python -m py_compile runtime/collector.py
+          python - <<'PY'
+          import json, os
+          rows=json.load(open('runtime/wallets-all.json',encoding='utf-8'))
+          target=os.environ['TARGET_WALLET'].lower()
+          p0=[r for r in rows if r['priority']=='P0']
+          selected=p0+[r for r in rows if r['wallet'].lower()==target]
+          assert len(p0)==1
+          assert len(selected)==2, (target,len(selected))
+          json.dump(selected,open('runtime/wallets.json','w',encoding='utf-8'),ensure_ascii=False,indent=2)
+          print({'target':target,'known_mints':sum(len(r.get('known_mints',[])) for r in selected),
+                 'known_sales':sum(len(r.get('known_sales',[])) for r in selected)})
+          PY
+      - name: Collect canonical evidence
+        run: python runtime/collector.py --wallets runtime/wallets.json --out out-wallet-verification
+      - name: Enforce complete target evidence
+        shell: bash
+        env:
+          TARGET_WALLET: ${{ matrix.wallet }}
+        run: |
+          python - <<'PY'
+          import csv,json,os
+          from pathlib import Path
+          out=Path('out-wallet-verification')
+          val=json.load(open(out/'VALIDATION.json',encoding='utf-8'))
+          rows=list(csv.DictReader(open(out/'wallet_summary.csv',encoding='utf-8-sig')))
+          errs=list(csv.DictReader(open(out/'errors.csv',encoding='utf-8-sig')))
+          target=os.environ['TARGET_WALLET'].lower()
+          row=next((r for r in rows if r.get('wallet','').lower()==target),None)
+          failures=[]
+          if val.get('status')!='PASS': failures.append({'code':'COLLECTOR_NOT_PASS'})
+          if errs: failures.append({'code':'COLLECTOR_ERRORS','rows':errs})
+          if not row: failures.append({'code':'TARGET_SUMMARY_MISSING'})
+          else:
+              if row.get('audit_status')=='FAIL': failures.append({'code':'TARGET_AUDIT_FAIL','error':row.get('error')})
+              meta=json.loads(row.get('history_meta') or '{}')
+              for family in ('tx','nft','erc1155'):
+                  if (meta.get(family) or {}).get('truncated_possible'):
+                      failures.append({'code':'HISTORY_TRUNCATED','family':family})
+              if int(row.get('known_transactions_found_in_index') or 0) != int(row.get('known_transactions_expected') or 0):
+                  failures.append({'code':'KNOWN_TX_INDEX_MISMATCH','found':row.get('known_transactions_found_in_index'),'expected':row.get('known_transactions_expected')})
+          report={'status':'PASS' if not failures else 'FAIL','wallet':target,'failures':failures,'production_approved_wallets':0}
+          (out/'TARGET_COMPLETENESS.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          if failures: raise SystemExit(1)
+          PY
+      - name: Preserve runtime
+        if: always()
+        run: |
+          mkdir -p out-wallet-verification/runtime
+          cp runtime/collector.py runtime/wallets.json out-wallet-verification/runtime/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-wallet-verification-p1c-${{ matrix.wallet }}
+          path: out-wallet-verification/
+          retention-days: 4
+          if-no-files-found: error
+          compression-level: 9
