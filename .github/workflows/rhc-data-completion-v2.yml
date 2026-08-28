@@ -1,0 +1,230 @@
+name: RHC canonical NFT data completion v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-data-completion-v2.yml'
+      - 'rhc-data-v2/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-data-completion-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  head:
+    runs-on: ubuntu-latest
+    outputs:
+      fixed_head: ${{ steps.capture.outputs.fixed_head }}
+      fixed_head_hash: ${{ steps.capture.outputs.fixed_head_hash }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - id: capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, urllib.request
+          url='https://rpc.mainnet.chain.robinhood.com'
+          def call(method,params):
+              payload=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode()
+              req=urllib.request.Request(url,data=payload,headers={'content-type':'application/json','user-agent':'RHC-V2-Head/1.0'})
+              with urllib.request.urlopen(req,timeout=90) as response: return json.loads(response.read())['result']
+          latest=int(call('eth_blockNumber',[]),16)
+          fixed=max(0,latest-100)
+          block=call('eth_getBlockByNumber',[hex(fixed),False])
+          print(f'fixed_head={fixed}')
+          print(f'fixed_head_hash={block["hash"].lower()}')
+          PY
+
+  discovery:
+    needs: head
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        target:
+          - seadrop
+          - seaport
+          - erc721_mint
+          - erc1155_single_mint
+          - erc1155_batch_mint
+          - erc2309_mint
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect canonical discovery logs
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          FIXED_HEAD: ${{ needs.head.outputs.fixed_head }}
+          FIXED_HEAD_HASH: ${{ needs.head.outputs.fixed_head_hash }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=rhc-data-v2 python rhc-data-v2/collect_discovery.py \
+            --target "$TARGET" \
+            --fixed-head "$FIXED_HEAD" \
+            --fixed-head-hash "$FIXED_HEAD_HASH" \
+            --out "out-discovery-${TARGET}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-v2-discovery-${{ matrix.target }}
+          path: out-discovery-${{ matrix.target }}/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 9
+
+  population:
+    needs: [head, discovery]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-v2-discovery-*
+          path: input-discovery
+      - name: Build fixed P0/P1/P2 wallet evidence input
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          curl --fail --location --silent --show-error \
+            'https://raw.githubusercontent.com/dcftradingcrypt/chart/625b4ad3c7756c6d1df4565b8b21d0676a4a11a5/wallet-verification/wallets.json.gz.b64' \
+            -o runtime/p1-wallets.json.gz.b64
+          base64 -d runtime/p1-wallets.json.gz.b64 | gzip -d > runtime/p1-wallets.json
+          curl --fail --location --silent --show-error \
+            'https://raw.githubusercontent.com/dcftradingcrypt/chart/fecf8498fab8cb37870c98005a1e207f33bf70cf/wallet-verification/p2_addresses.txt' \
+            -o runtime/p2_addresses.txt
+          python - <<'PY'
+          import json,re,pathlib
+          p1=json.loads(pathlib.Path('runtime/p1-wallets.json').read_text())
+          p2=[line.strip().lower() for line in pathlib.Path('runtime/p2_addresses.txt').read_text().splitlines() if line.strip()]
+          rows={}
+          for row in p1:
+              value=dict(row); value['wallet']=value['wallet'].lower(); rows[value['wallet']]=value
+          for wallet in p2:
+              rows.setdefault(wallet,{'wallet':wallet,'priority':'P2','known_mints':[],'known_sales':[],'verification_reasons':['FIXED_P2_QUEUE']})
+          order={'P0':0,'P1':1,'P2':2}
+          values=sorted(rows.values(),key=lambda row:(order.get(row.get('priority'),9),row['wallet']))
+          assert len(p1)==20, len(p1)
+          assert len(p2)==212, len(p2)
+          assert len(values)==232, len(values)
+          assert sum(row.get('priority')=='P0' for row in values)==1
+          assert sum(row.get('priority')=='P1' for row in values)==19
+          assert sum(row.get('priority')=='P2' for row in values)==212
+          assert all(re.fullmatch(r'0x[a-f0-9]{40}',row['wallet']) for row in values)
+          pathlib.Path('runtime/known-wallets.json').write_text(json.dumps(values,indent=2),encoding='utf-8')
+          PY
+      - name: Build canonical NFT contract population
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=rhc-data-v2 python rhc-data-v2/build_contract_population.py \
+            --input-root input-discovery \
+            --known-wallets runtime/known-wallets.json \
+            --out out-population
+          mkdir -p out-population/runtime
+          cp runtime/known-wallets.json out-population/runtime/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-v2-contract-population
+          path: out-population/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 9
+
+  transfers:
+    needs: population
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-v2-contract-population
+          path: input-population
+      - name: Collect full transfer history for contract shard
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=rhc-data-v2 python rhc-data-v2/collect_contract_transfers.py \
+            --contracts input-population/contracts.csv \
+            --out "out-transfers-${SHARD}" \
+            --shard "$SHARD" \
+            --shard-count 16
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-v2-transfers-${{ matrix.shard }}
+          path: out-transfers-${{ matrix.shard }}/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 9
+
+  enrich:
+    needs: [discovery, transfers]
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-v2-discovery-*
+          path: input-events/discovery
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-v2-transfers-*
+          path: input-events/transfers
+      - name: Fetch transaction, receipt, and block shard
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=rhc-data-v2 python rhc-data-v2/enrich_transactions.py \
+            --input-root input-events \
+            --out "out-enrich-${SHARD}" \
+            --shard "$SHARD" \
+            --shard-count 32
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-v2-enrich-${{ matrix.shard }}
+          path: out-enrich-${{ matrix.shard }}/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 9
