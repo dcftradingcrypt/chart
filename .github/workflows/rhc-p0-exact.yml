@@ -1,0 +1,301 @@
+name: RHC P0 exact transaction verification
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-p0-exact.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify exact P0 mint and sale transactions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out-p0-exact/raw
+          python - <<'PY'
+          from __future__ import annotations
+          import hashlib, json, pathlib, random, time, urllib.error, urllib.request
+
+          OUT = pathlib.Path('out-p0-exact')
+          RAW = OUT / 'raw'
+          RPC = 'https://rpc.mainnet.chain.robinhood.com'
+          BS = 'https://robinhoodchain.blockscout.com/api/v2'
+          ZERO = '0x' + '0' * 40
+          TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+          SEADROP_MINT = '0xe90cf9cc0a552cf52ea6ff74ece0f1c8ae8cc9ad630d3181f55ac43ca076b7d6'
+          ORDER_FULFILLED = '0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31'
+          WALLET = '0x76d387388bea6b60ca6d1e97f446f7e26d39d313'
+          MINT_TX = '0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23'
+          MINT_CONTRACT = '0x797a0889718c30060fc797659328590e86041fbd'
+          MINT_BLOCK_EXPECTED = 46802320
+          MINT_LOG_INDEX_EXPECTED = 45
+          MINT_PRICE_EXPECTED = 170000000000000
+          SALE_TX = '0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b'
+          SALE_CONTRACT = '0x66007297055229066d86294a18edb6e1a2db32d7'
+          SALE_TOKEN_ID = 1692
+          SALE_BUYER = '0xbbc7974b1d4b353b2557382ac543dfdab7846026'
+          SOURCE_REPORTED_PRICE_WEI = 700000000000000
+          UA = 'RHC-P0-Exact-Verification/1.0'
+
+          def norm(v):
+              return str(v).lower() if v is not None else None
+
+          def intval(v, default=None):
+              if v is None: return default
+              if isinstance(v, int): return v
+              if isinstance(v, str):
+                  try: return int(v, 16) if v.startswith('0x') else int(v)
+                  except Exception: return default
+              if isinstance(v, dict):
+                  for key in ('value','amount'):
+                      if key in v: return intval(v[key], default)
+              return default
+
+          def topic_addr(topic):
+              return '0x' + topic[-40:].lower()
+
+          def words(data):
+              h = str(data or '0x')[2:]
+              if len(h) % 64: raise ValueError('unaligned ABI data')
+              return [int(h[i:i+64], 16) for i in range(0, len(h), 64)]
+
+          def request(url, data=None, attempts=8):
+              headers = {'User-Agent': UA, 'Accept': 'application/json'}
+              if data is not None:
+                  body = json.dumps(data).encode()
+                  headers['Content-Type'] = 'application/json'
+              else:
+                  body = None
+              last = None
+              for attempt in range(attempts):
+                  try:
+                      req = urllib.request.Request(url, data=body, headers=headers)
+                      with urllib.request.urlopen(req, timeout=60) as resp:
+                          raw = resp.read()
+                          return resp.status, json.loads(raw.decode()) if raw else None
+                  except urllib.error.HTTPError as exc:
+                      last = exc
+                      raw = exc.read()
+                      if exc.code in (404, 400):
+                          try: payload = json.loads(raw.decode())
+                          except Exception: payload = {'error': raw.decode('utf-8','replace')}
+                          return exc.code, payload
+                      if exc.code == 429 or exc.code >= 500:
+                          time.sleep(min(30, 2 ** attempt + random.random()))
+                          continue
+                      raise
+                  except Exception as exc:
+                      last = exc
+                      if attempt + 1 < attempts:
+                          time.sleep(min(20, 2 ** attempt + random.random()))
+                          continue
+              raise RuntimeError(f'request failed {url}: {last!r}')
+
+          rpc_id = 0
+          def rpc(method, params):
+              global rpc_id
+              rpc_id += 1
+              status, payload = request(RPC, {'jsonrpc':'2.0','id':rpc_id,'method':method,'params':params})
+              if status != 200 or not isinstance(payload, dict) or payload.get('error'):
+                  raise RuntimeError({'method':method,'status':status,'payload':payload})
+              return payload.get('result')
+
+          def save(name, value):
+              path = RAW / name
+              path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True), encoding='utf-8')
+              return path
+
+          def bs(path):
+              status, payload = request(BS + path)
+              save(path.strip('/').replace('/','__') + '.json', {'http_status':status,'payload':payload})
+              return status, payload
+
+          chain_id = intval(rpc('eth_chainId', []))
+          head = intval(rpc('eth_blockNumber', []))
+          assert chain_id == 4663, chain_id
+
+          bundles = {}
+          for label, tx_hash in (('mint', MINT_TX), ('sale', SALE_TX)):
+              tx = rpc('eth_getTransactionByHash', [tx_hash])
+              receipt = rpc('eth_getTransactionReceipt', [tx_hash])
+              if tx is None or receipt is None:
+                  raise RuntimeError(f'{label} tx or receipt missing')
+              block_no = intval(receipt.get('blockNumber'))
+              block = rpc('eth_getBlockByNumber', [hex(block_no), False])
+              bundle = {'transaction':tx,'receipt':receipt,'block':block}
+              bundles[label] = bundle
+              save(f'{label}_rpc_bundle.json', bundle)
+              for suffix in ('', '/token-transfers', '/internal-transactions', '/logs', '/raw-trace'):
+                  bs(f'/transactions/{tx_hash}{suffix}')
+
+          # Mint proof.
+          mint_tx = bundles['mint']['transaction']
+          mint_receipt = bundles['mint']['receipt']
+          mint_block = intval(mint_receipt.get('blockNumber'))
+          mint_status = intval(mint_receipt.get('status'))
+          seadrop_rows = []
+          zero_rows = []
+          for log in mint_receipt.get('logs') or []:
+              topics = [norm(x) for x in (log.get('topics') or [])]
+              emitter = norm(log.get('address'))
+              li = intval(log.get('logIndex'))
+              if topics and topics[0] == SEADROP_MINT:
+                  vals = words(log.get('data'))
+                  if len(topics) >= 4 and len(vals) >= 5:
+                      seadrop_rows.append({
+                          'emitter': emitter,
+                          'log_index': li,
+                          'nft_contract': topic_addr(topics[1]),
+                          'minter': topic_addr(topics[2]),
+                          'fee_recipient': topic_addr(topics[3]),
+                          'payer': '0x' + f'{vals[0]:064x}'[-40:],
+                          'quantity': vals[1],
+                          'unit_mint_price_wei': vals[2],
+                          'fee_bps': vals[3],
+                          'drop_stage_index': vals[4],
+                      })
+              if emitter == MINT_CONTRACT and len(topics) == 4 and topics[0] == TRANSFER:
+                  frm, to = topic_addr(topics[1]), topic_addr(topics[2])
+                  if frm == ZERO:
+                      zero_rows.append({'log_index':li,'from':frm,'to':to,'token_id':int(topics[3],16)})
+          mint_match = [r for r in seadrop_rows if r['log_index']==MINT_LOG_INDEX_EXPECTED and r['nft_contract']==MINT_CONTRACT]
+          mint_match = mint_match[0] if len(mint_match)==1 else None
+          mint_verified = bool(
+              mint_status == 1 and mint_block == MINT_BLOCK_EXPECTED and mint_match
+              and mint_match['minter'] == WALLET and mint_match['payer'] == WALLET
+              and mint_match['quantity'] == 1 and mint_match['unit_mint_price_wei'] == MINT_PRICE_EXPECTED
+              and mint_match['drop_stage_index'] == 0
+              and sum(r['to']==WALLET for r in zero_rows) == 1
+          )
+
+          # Sale proof.
+          sale_tx = bundles['sale']['transaction']
+          sale_receipt = bundles['sale']['receipt']
+          sale_status = intval(sale_receipt.get('status'))
+          nft_transfers, erc20_to_seller, order_logs = [], [], []
+          for log in sale_receipt.get('logs') or []:
+              topics = [norm(x) for x in (log.get('topics') or [])]
+              emitter = norm(log.get('address'))
+              li = intval(log.get('logIndex'))
+              if topics and topics[0] == ORDER_FULFILLED:
+                  order_logs.append({'emitter':emitter,'log_index':li,'topics':topics,'data':log.get('data')})
+              if len(topics) >= 3 and topics[0] == TRANSFER:
+                  frm, to = topic_addr(topics[1]), topic_addr(topics[2])
+                  if len(topics) == 4:
+                      nft_transfers.append({'contract':emitter,'from':frm,'to':to,'token_id':int(topics[3],16),'log_index':li})
+                  else:
+                      amount = intval(log.get('data'), 0) or 0
+                      if to == WALLET and amount > 0:
+                          erc20_to_seller.append({'token':emitter,'from':frm,'to':to,'amount_raw':amount,'log_index':li})
+          sale_nft_match = [r for r in nft_transfers if r['contract']==SALE_CONTRACT and r['from']==WALLET and r['to']==SALE_BUYER and r['token_id']==SALE_TOKEN_ID]
+          sale_transfer_verified = sale_status == 1 and len(sale_nft_match) == 1
+
+          # Blockscout internal and token transfers are used only as additional payment evidence.
+          _, sale_internal = bs(f'/transactions/{SALE_TX}/internal-transactions')
+          _, sale_token_transfers = bs(f'/transactions/{SALE_TX}/token-transfers')
+          internal_items = sale_internal.get('items', []) if isinstance(sale_internal, dict) else []
+          token_items = sale_token_transfers.get('items', []) if isinstance(sale_token_transfers, dict) else []
+          native_to_seller = []
+          for row in internal_items:
+              to = norm((row.get('to') or {}).get('hash') if isinstance(row.get('to'),dict) else row.get('to'))
+              value = intval(row.get('value'),0) or 0
+              if to == WALLET and value > 0:
+                  native_to_seller.append({'value_wei':value,'raw':row})
+          blockscout_fungible_to_seller = []
+          for row in token_items:
+              to = norm((row.get('to') or {}).get('hash') if isinstance(row.get('to'),dict) else row.get('to'))
+              token = row.get('token') or {}
+              standard = str(token.get('type') or token.get('standard') or '').upper()
+              token_id = row.get('token_id')
+              if to == WALLET and token_id is None and not ('721' in standard or '1155' in standard):
+                  blockscout_fungible_to_seller.append(row)
+          seller_payment_evidence = {
+              'top_level_native_to_seller_wei': intval(sale_tx.get('value'),0) if norm(sale_tx.get('to'))==WALLET else 0,
+              'internal_native_to_seller': native_to_seller,
+              'receipt_erc20_to_seller': erc20_to_seller,
+              'blockscout_fungible_to_seller': blockscout_fungible_to_seller,
+          }
+          payment_proven = bool(
+              seller_payment_evidence['top_level_native_to_seller_wei']
+              or native_to_seller or erc20_to_seller or blockscout_fungible_to_seller
+          )
+
+          # Token provenance before the sale.
+          provenance_status, provenance = bs(f'/tokens/{SALE_CONTRACT}/instances/{SALE_TOKEN_ID}/transfers')
+          provenance_items = provenance.get('items',[]) if provenance_status==200 and isinstance(provenance,dict) else []
+          prior_to_seller = []
+          for row in provenance_items:
+              to = norm((row.get('to') or {}).get('hash') if isinstance(row.get('to'),dict) else row.get('to'))
+              txh = norm(row.get('transaction_hash') or (row.get('transaction') or {}).get('hash') if isinstance(row.get('transaction'),dict) else row.get('transaction_hash'))
+              if to == WALLET and txh != SALE_TX:
+                  prior_to_seller.append(row)
+          acquisition_transfer_found = len(prior_to_seller) > 0
+
+          result = {
+              'chain_id': chain_id,
+              'source_head_block': head,
+              'wallet': WALLET,
+              'mint': {
+                  'transaction_hash': MINT_TX,
+                  'block_number': mint_block,
+                  'receipt_status': mint_status,
+                  'seadrop_matches': seadrop_rows,
+                  'zero_address_transfers': zero_rows,
+                  'verified': mint_verified,
+              },
+              'sale': {
+                  'transaction_hash': SALE_TX,
+                  'receipt_status': sale_status,
+                  'nft_transfer_matches': sale_nft_match,
+                  'order_fulfilled_log_count': len(order_logs),
+                  'seller_payment_evidence': seller_payment_evidence,
+                  'nft_transfer_verified': sale_transfer_verified,
+                  'payment_proven': payment_proven,
+                  'source_reported_price_wei': SOURCE_REPORTED_PRICE_WEI,
+                  'acquisition_transfer_found': acquisition_transfer_found,
+                  'prior_transfers_to_seller': prior_to_seller,
+                  'exact_acquisition_cost_proven': False,
+                  'realized_pnl_calculable': False,
+              },
+              'classification': {
+                  'selection_alpha': 'LOW_SAMPLE_NOT_EVALUATABLE',
+                  'execution_alpha': 'NOT_EVALUATABLE_WITHOUT_EXACT_ACQUISITION_COST',
+                  'copy_alpha': 'NOT_EVALUATED',
+                  'production_approved': False,
+              },
+          }
+          failures = []
+          if not mint_verified: failures.append('P0_MINT_NOT_CANONICALLY_VERIFIED')
+          if not sale_transfer_verified: failures.append('P0_SALE_NFT_TRANSFER_NOT_VERIFIED')
+          if not payment_proven: failures.append('P0_SALE_PAYMENT_NOT_PROVEN')
+          result['validation'] = {'status':'PASS' if not failures else 'FAIL','failures':failures}
+          (OUT/'P0_RESULT.json').write_text(json.dumps(result,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+          manifest=[]
+          for path in sorted(OUT.rglob('*')):
+              if path.is_file():
+                  manifest.append({'path':str(path.relative_to(OUT)),'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+          (OUT/'MANIFEST.json').write_text(json.dumps(manifest,indent=2,sort_keys=True),encoding='utf-8')
+          print(json.dumps(result['validation'],sort_keys=True))
+          if failures:
+              raise SystemExit(1)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-p0-exact
+          path: out-p0-exact/
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 9
