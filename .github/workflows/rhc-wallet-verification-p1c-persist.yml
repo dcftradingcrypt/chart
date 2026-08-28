@@ -1,0 +1,107 @@
+name: Persist RHC P1c recovery artifacts
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-wallet-verification-p1c-persist.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: persist-rhc-p1c-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  persist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_BRANCH: chatgpt/rhc-wallet-verification-p1c-20260829
+      TARGET_WORKFLOW: RHC wallet verification P1c recovery
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-wallet-verification-p1c-20260829
+          fetch-depth: 0
+      - name: Wait for P1c recovery and download all artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p persisted-p1c/downloads persisted-p1c/extracted
+          run_id=''
+          for attempt in $(seq 1 120); do
+            runs_json="$(gh api --paginate "/repos/${GITHUB_REPOSITORY}/actions/runs?branch=${HEAD_BRANCH}&event=pull_request&per_page=100")"
+            run_id="$(python -c 'import json,sys; d=json.load(sys.stdin); xs=[r for r in d.get("workflow_runs",[]) if r.get("name")==sys.argv[1]]; xs.sort(key=lambda r:r.get("created_at",""),reverse=True); print(xs[0]["id"] if xs else "")' "$TARGET_WORKFLOW" <<<"$runs_json")"
+            if [[ -n "$run_id" ]]; then
+              state="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.status + ":" + (.conclusion // "")')"
+              echo "target run ${run_id}: ${state}"
+              [[ "$state" == completed:* ]] && break
+            fi
+            sleep 120
+          done
+          [[ -n "$run_id" ]] || exit 1
+          [[ "$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq .status)" == completed ]] || exit 1
+          echo "$run_id" > persisted-p1c/run_id.txt
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" > persisted-p1c/run.json
+          gh api --paginate "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100" > persisted-p1c/artifacts.json
+          python - <<'PY'
+          import json,pathlib,subprocess,zipfile,hashlib,os
+          root=pathlib.Path('persisted-p1c')
+          data=json.loads((root/'artifacts.json').read_text())
+          arts=[a for a in data.get('artifacts',[]) if a['name'].startswith('rhc-wallet-verification-p1c-') and not a.get('expired')]
+          # Matrix wallet artifact names are unique and each contains P0 + one target.
+          if len(arts)!=5:
+              raise SystemExit(f'expected 5 P1c artifacts, found {len(arts)}: {[a["name"] for a in arts]}')
+          manifest=[]; failures=[]; wallets=[]
+          for a in sorted(arts,key=lambda x:x['name']):
+              zpath=root/'downloads'/f"{a['name']}.zip"
+              with zpath.open('wb') as out:
+                  subprocess.run(['gh','api',f"/repos/{os.environ['GITHUB_REPOSITORY']}/actions/artifacts/{a['id']}/zip"],stdout=out,check=True)
+              if not zipfile.is_zipfile(zpath): raise SystemExit(f'not zip: {zpath}')
+              dest=root/'extracted'/a['name']; dest.mkdir(parents=True,exist_ok=True)
+              with zipfile.ZipFile(zpath) as z: z.extractall(dest)
+              gate=dest/'TARGET_COMPLETENESS.json'; val=dest/'VALIDATION.json'
+              gd=json.loads(gate.read_text()) if gate.exists() else {'status':'MISSING'}
+              vd=json.loads(val.read_text()) if val.exists() else {'status':'MISSING'}
+              wallets.append(gd.get('wallet'))
+              if gd.get('status')!='PASS' or vd.get('status')!='PASS': failures.append({'artifact':a['name'],'target':gd,'collector':vd})
+              manifest.append({'artifact_name':a['name'],'artifact_id':a['id'],'artifact_digest':a.get('digest'),'zip_bytes':zpath.stat().st_size,'zip_sha256':hashlib.sha256(zpath.read_bytes()).hexdigest(),'target_wallet':gd.get('wallet'),'target_status':gd.get('status'),'collector_status':vd.get('status')})
+          report={'status':'PASS' if not failures and len(set(wallets))==5 else 'FAIL','target_run_id':int((root/'run_id.txt').read_text()),'artifact_count':len(manifest),'unique_target_wallets':len(set(wallets)),'failures':failures,'production_approved_wallets':0,'decision_use':'DATA_COLLECTION_ONLY'}
+          (root/'artifact_manifest.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
+          (root/'AGGREGATE_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Commit immutable P1c recovery bundle to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(cat persisted-p1c/run_id.txt)"
+          dest="wallet-verification-p1c/evidence-run-${run_id}"
+          rm -rf "$dest"; mkdir -p "$dest"
+          cp persisted-p1c/run.json persisted-p1c/artifacts.json persisted-p1c/artifact_manifest.json persisted-p1c/AGGREGATE_VALIDATION.json "$dest/"
+          cp persisted-p1c/downloads/*.zip "$dest/"
+          git config user.name 'rhc-data-collector'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$dest"
+          git commit -m "data: persist P1c wallet evidence run ${run_id}"
+          for attempt in $(seq 1 10); do
+            git fetch origin "$HEAD_BRANCH"
+            git rebase "origin/$HEAD_BRANCH"
+            if git push origin "HEAD:$HEAD_BRANCH"; then break; fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt * 3))
+          done
+      - name: Enforce aggregate completeness after preservation
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('persisted-p1c/AGGREGATE_VALIDATION.json'))
+          assert d['status']=='PASS',d
+          assert d['artifact_count']==5,d
+          assert d['unique_target_wallets']==5,d
+          PY
