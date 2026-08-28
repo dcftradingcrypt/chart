@@ -1,0 +1,51 @@
+name: RHC NFT contract universe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-nft-contract-universe.yml'
+      - 'nft-universe/collect.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rhc-nft-contract-universe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-nft-contract-universe-20260829
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect complete ERC-721 and ERC-1155 token lists
+        run: python nft-universe/collect.py
+      - name: Commit immutable evidence to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="nft-universe/evidence-run-${GITHUB_RUN_ID}"
+          rm -rf "$dest"; mkdir -p "$dest"
+          cp out-nft-universe/* "$dest/"
+          git config user.name 'rhc-data-collector'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$dest"
+          git commit -m "data: persist NFT contract universe run ${GITHUB_RUN_ID}"
+          git push origin "HEAD:chatgpt/rhc-nft-contract-universe-20260829"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-nft-contract-universe
+          path: out-nft-universe/
+          retention-days: 4
+          if-no-files-found: error
+          compression-level: 9
