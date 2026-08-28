@@ -1,0 +1,15 @@
+{
+  "claim_mismatches": 3,
+  "decision_use": "EVIDENCE_VERIFICATION_ONLY_NOT_STRENGTH_SCORING",
+  "exact_mint_proven": 19,
+  "exact_purchase_proven": 0,
+  "exact_sale_proven": 2,
+  "failures": [],
+  "p1_input_wallets": 19,
+  "p1_output_wallets": 19,
+  "production_approved_wallets": 0,
+  "rpc_errors": 0,
+  "source_only_wallets": 4,
+  "status": "PASS",
+  "wallets_with_exact_tx_hash": 15
+}
