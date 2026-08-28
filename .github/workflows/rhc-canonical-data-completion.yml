@@ -1,0 +1,162 @@
+name: RHC canonical data completion
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-canonical-data-completion.yml'
+      - 'rhc-data-completion/**'
+      - 'wallet-verification/p2_addresses.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-canonical-data-completion-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  head:
+    runs-on: ubuntu-latest
+    outputs:
+      fixed_head: ${{ steps.capture.outputs.fixed_head }}
+    steps:
+      - id: capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, urllib.request
+          payload=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode()
+          req=urllib.request.Request('https://rpc.mainnet.chain.robinhood.com',data=payload,headers={'content-type':'application/json','user-agent':'RHC-Head-Capture/1.0'})
+          with urllib.request.urlopen(req,timeout=60) as response:
+              data=json.loads(response.read())
+          latest=int(data['result'],16)
+          fixed=max(0,latest-100)
+          print(f'fixed_head={fixed}')
+          PY
+
+  global-events:
+    needs: head
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        target: [seadrop, seaport]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect complete canonical event history
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          FIXED_HEAD: ${{ needs.head.outputs.fixed_head }}
+        run: |
+          set -euo pipefail
+          mkdir -p "out-global-${TARGET}"
+          # The collector captures its own head. Verify it is not behind the workflow fixed head,
+          # then retain the collector's finalized head in its validation record.
+          PYTHONPATH=rhc-data-completion python rhc-data-completion/collect_global_events.py \
+            --target "$TARGET" \
+            --out "out-global-${TARGET}" \
+            --chunk 2000000 \
+            --confirmations 100
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-global-${{ matrix.target }}
+          path: out-global-${{ matrix.target }}/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
+
+  wallets:
+    needs: [head, global-events]
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build fixed 232-wallet input
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          curl --fail --location --silent --show-error \
+            'https://raw.githubusercontent.com/dcftradingcrypt/chart/chatgpt/rhc-wallet-verification-p0p1-20260828/wallet-verification/wallets.json.gz.b64' \
+            -o runtime/p1-wallets.json.gz.b64
+          base64 -d runtime/p1-wallets.json.gz.b64 | gzip -d > runtime/p1-wallets.json
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          p1=json.loads(Path('runtime/p1-wallets.json').read_text())
+          p2=[line.strip().lower() for line in Path('wallet-verification/p2_addresses.txt').read_text().splitlines() if line.strip()]
+          by_wallet={}
+          for row in p1:
+              wallet=row['wallet'].lower()
+              row=dict(row); row['wallet']=wallet
+              by_wallet[wallet]=row
+          for wallet in p2:
+              by_wallet.setdefault(wallet,{
+                  'wallet':wallet,
+                  'priority':'P2',
+                  'priority_points':5,
+                  'verification_reasons':['FIXED_P2_VERIFICATION_QUEUE'],
+                  'known_mints':[],
+                  'known_sales':[],
+              })
+          priority_order={'P0':0,'P1':1,'P2':2}
+          rows=sorted(by_wallet.values(),key=lambda r:(priority_order.get(r.get('priority'),9),r['wallet']))
+          assert len(p1)==20, len(p1)
+          assert len(p2)==212, len(p2)
+          assert len(rows)==232, len(rows)
+          assert all(re.fullmatch(r'0x[a-f0-9]{40}',r['wallet']) for r in rows)
+          Path('runtime/all-wallets.json').write_text(json.dumps(rows,indent=2),encoding='utf-8')
+          Path('runtime/input-summary.json').write_text(json.dumps({
+              'wallets':len(rows),
+              'p0':sum(r.get('priority')=='P0' for r in rows),
+              'p1':sum(r.get('priority')=='P1' for r in rows),
+              'p2':sum(r.get('priority')=='P2' for r in rows),
+          },indent=2),encoding='utf-8')
+          PY
+      - name: Collect canonical wallet NFT transfer histories
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+          FIXED_HEAD: ${{ needs.head.outputs.fixed_head }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=rhc-data-completion python rhc-data-completion/collect_wallet_transfers.py \
+            --wallets runtime/all-wallets.json \
+            --out "out-wallet-${SHARD}" \
+            --shard "$SHARD" \
+            --shard-count 16 \
+            --fixed-head "$FIXED_HEAD"
+      - name: Preserve fixed inputs
+        if: always()
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          mkdir -p "out-wallet-${SHARD}/runtime"
+          cp runtime/all-wallets.json runtime/input-summary.json "out-wallet-${SHARD}/runtime/" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-canonical-wallet-${{ matrix.shard }}
+          path: out-wallet-${{ matrix.shard }}/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
