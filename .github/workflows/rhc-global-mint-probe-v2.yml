@@ -1,0 +1,176 @@
+name: RHC global zero-address NFT mint probe v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-global-mint-probe-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic Keccak implementation
+        run: python -m pip install --disable-pip-version-check --no-input pycryptodome==3.23.0
+      - name: Probe global mint log filters
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out-global-mint-probe
+          python - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from Crypto.Hash import keccak
+
+          out = pathlib.Path('out-global-mint-probe')
+          head = 48_264_433
+          zero_topic = '0x' + ('0' * 64)
+
+          def topic(signature: str) -> str:
+              digest = keccak.new(digest_bits=256)
+              digest.update(signature.encode('utf-8'))
+              return '0x' + digest.hexdigest()
+
+          targets = {
+              'erc721_or_erc20_transfer_zero_from': {
+                  'topic0': topic('Transfer(address,address,uint256)'),
+                  'topic1': zero_topic,
+                  'topic0_1_opr': 'and',
+              },
+              'erc1155_single_zero_from': {
+                  'topic0': topic('TransferSingle(address,address,address,uint256,uint256)'),
+                  'topic2': zero_topic,
+                  'topic0_2_opr': 'and',
+              },
+              'erc1155_batch_zero_from': {
+                  'topic0': topic('TransferBatch(address,address,address,uint256[],uint256[])'),
+                  'topic2': zero_topic,
+                  'topic0_2_opr': 'and',
+              },
+          }
+          expected_topics = {
+              'erc721_or_erc20_transfer_zero_from': '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+          }
+          assert targets['erc721_or_erc20_transfer_zero_from']['topic0'] == expected_topics['erc721_or_erc20_transfer_zero_from']
+
+          bases = [
+              'https://robinhoodchain.blockscout.com/api',
+              'https://explorer.hoodmarketcap.com/api',
+          ]
+          ranges = {
+              'full': (0, head),
+              'recent_1m': (max(0, head - 1_000_000), head),
+              'early_5m': (0, 5_000_000),
+          }
+          summaries = []
+          for name, topic_params in targets.items():
+              for range_name, (start, end) in ranges.items():
+                  success = False
+                  errors = []
+                  for base in bases:
+                      params = {
+                          'module': 'logs',
+                          'action': 'getLogs',
+                          'fromBlock': start,
+                          'toBlock': end,
+                          **topic_params,
+                      }
+                      url = base + '?' + urllib.parse.urlencode(params)
+                      try:
+                          request = urllib.request.Request(
+                              url,
+                              headers={
+                                  'User-Agent': 'RHC-Global-Mint-Probe/2.0',
+                                  'Accept': 'application/json',
+                              },
+                          )
+                          with urllib.request.urlopen(request, timeout=90) as response:
+                              raw = response.read()
+                              status = response.status
+                          payload = json.loads(raw)
+                          result = payload.get('result') if isinstance(payload, dict) else None
+                          if not isinstance(result, list):
+                              raise RuntimeError(repr(payload)[:1000])
+                          record = {
+                              'target': name,
+                              'range': range_name,
+                              'from_block': start,
+                              'to_block': end,
+                              'endpoint': base,
+                              'http_status': status,
+                              'rows': len(result),
+                              'message': payload.get('message'),
+                              'status': payload.get('status'),
+                              'topic0': topic_params['topic0'],
+                              'first_block': int(result[0]['blockNumber'], 16) if result else None,
+                              'last_block': int(result[-1]['blockNumber'], 16) if result else None,
+                              'topic_counts': sorted({len(row.get('topics') or []) for row in result}),
+                              'capped_at_1000_possible': len(result) >= 1000,
+                          }
+                          (out / f'{name}__{range_name}.json').write_bytes(raw)
+                          summaries.append(record)
+                          print(json.dumps(record, sort_keys=True), flush=True)
+                          success = True
+                          break
+                      except Exception as exc:
+                          errors.append(f'{base}:{exc!r}')
+                          time.sleep(3)
+                  if not success:
+                      summaries.append({
+                          'target': name,
+                          'range': range_name,
+                          'from_block': start,
+                          'to_block': end,
+                          'errors': errors,
+                      })
+
+          (out / 'summary.json').write_text(json.dumps(summaries, indent=2, sort_keys=True), encoding='utf-8')
+          validation = {
+              'status': 'PASS' if all('rows' in row for row in summaries) else 'FAIL',
+              'fixed_head': head,
+              'queries': len(summaries),
+              'successful_queries': sum('rows' in row for row in summaries),
+              'global_transfer_zero_filter_supported': any(row.get('target') == 'erc721_or_erc20_transfer_zero_from' and 'rows' in row for row in summaries),
+              'global_erc1155_single_filter_supported': any(row.get('target') == 'erc1155_single_zero_from' and 'rows' in row for row in summaries),
+              'global_erc1155_batch_filter_supported': any(row.get('target') == 'erc1155_batch_zero_from' and 'rows' in row for row in summaries),
+              'full_range_caps_detected': [
+                  row['target'] for row in summaries
+                  if row.get('range') == 'full' and row.get('capped_at_1000_possible')
+              ],
+          }
+          (out / 'validation.json').write_text(json.dumps(validation, indent=2, sort_keys=True), encoding='utf-8')
+          manifest = []
+          for path in sorted(out.iterdir()):
+              if path.is_file():
+                  manifest.append({
+                      'path': path.name,
+                      'bytes': path.stat().st_size,
+                      'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+                  })
+          (out / 'manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding='utf-8')
+          print(json.dumps(validation, sort_keys=True), flush=True)
+          if validation['status'] != 'PASS':
+              raise SystemExit(1)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-global-mint-probe-v2
+          path: out-global-mint-probe/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
