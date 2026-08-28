@@ -1,0 +1,1 @@
+Cancel only the superseded full-transfer-history and dependent mint-enrichment workflows. Preserve the NFT contract universe, canonical SeaDrop/Seaport history, wallet evidence collection, and Seaport enrichment workflows.
