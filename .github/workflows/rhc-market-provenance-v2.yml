@@ -1,0 +1,117 @@
+name: RHC build complete primary cost sale and token provenance dataset v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-market-provenance-v2.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-market-provenance-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned ABI dependencies
+        run: python -m pip install --disable-pip-version-check --no-input eth-abi==5.2.0 eth-utils==5.3.1
+      - name: Materialize and compile conservative v2 builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          cp rhc-market-provenance/common.py runtime/common.py
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('rhc-market-provenance/build.py').read_text(encoding='utf-8')
+          old_map = '''    primary_by_token = {
+        (row["nft_contract"], row["token_id"]): row
+        for row in primary_lots if row["standard"] == "ERC721"
+    }
+'''
+          new_map = '''    primary_by_token = {
+        (row["nft_contract"], row["token_id"], row["transaction_hash"]): row
+        for row in primary_lots if row["standard"] == "ERC721"
+    }
+'''
+          old_lookup = '                lot = primary_by_token.get(token_key)\n'
+          new_lookup = '                lot = primary_by_token.get((token_key[0], token_key[1], row["transaction_hash"]))\n'
+          old_primary_call = '''    primary_lots, primary_failures = build_primary_lots(
+        normalized_root, tx_by_hash, receipt_by_hash, flows_by_tx, timestamp_by_block
+    )
+'''
+          new_primary_call = '''    primary_lots, primary_failures = build_primary_lots(
+        normalized_root, tx_by_hash, receipt_by_hash, flows_by_tx, timestamp_by_block
+    )
+    custom_scope = defaultdict(lambda: {"contracts": set(), "recipients": set()})
+    for lot in primary_lots:
+        if lot.get("source") == "CUSTOM_ZERO_MINT":
+            custom_scope[lot["transaction_hash"]]["contracts"].add(lot["nft_contract"])
+            custom_scope[lot["transaction_hash"]]["recipients"].add(lot["recipient"])
+    for lot in primary_lots:
+        if lot.get("source") != "CUSTOM_ZERO_MINT":
+            continue
+        scope = custom_scope[lot["transaction_hash"]]
+        if len(scope["contracts"]) > 1 or len(scope["recipients"]) > 1:
+            lot["unit_primary_price_raw"] = None
+            lot["entry_gas_per_unit_raw"] = None
+            lot["unit_total_cost_raw"] = None
+            lot["cost_status"] = "MULTI_CONTRACT_OR_RECIPIENT_CUSTOM_ALLOCATION_UNRESOLVED"
+            lot["copyable_public_preliminary"] = False
+'''
+          if source.count(old_map) != 1 or source.count(old_lookup) != 1 or source.count(old_primary_call) != 1:
+              raise SystemExit('expected deterministic conservative patch targets')
+          source = source.replace(old_map, new_map).replace(old_lookup, new_lookup).replace(old_primary_call, new_primary_call)
+          source = source.replace('Path("rhc-market-provenance-output")', 'Path("rhc-market-provenance-v2-output")')
+          source = source.replace('Path("rhc-market-provenance-stage")', 'Path("rhc-market-provenance-v2-stage")')
+          source = source.replace('"rhc-enrichment-aggregate"', '"rhc-enrichment-aggregate-v2"')
+          Path('runtime/build.py').write_text(source, encoding='utf-8')
+          PY
+          python -m py_compile runtime/common.py runtime/build.py
+          sha256sum rhc-market-provenance/common.py rhc-market-provenance/build.py runtime/common.py runtime/build.py > runtime/BUILDER_SHA256SUMS.txt
+      - name: Wait for complete sources and build conservative market provenance
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: PYTHONPATH=runtime python runtime/build.py
+      - name: Preserve exact executed builder
+        if: always()
+        run: |
+          mkdir -p rhc-market-provenance-v2-output/runtime
+          cp runtime/common.py runtime/build.py runtime/BUILDER_SHA256SUMS.txt rhc-market-provenance-v2-output/runtime/
+      - name: Upload conservative market provenance dataset
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-market-provenance-v2
+          path: rhc-market-provenance-v2-output/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 9
+      - name: Commit immutable source IDs and status
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rhc-market-provenance-v2-stage/
+          if git diff --cached --quiet; then
+            echo 'No v2 market provenance status changes.'
+          else
+            git commit -m 'data: record v2 market provenance status [skip ci]'
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi

@@ -1,0 +1,92 @@
+name: RHC build complete primary cost sale and token provenance dataset
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-market-provenance.yml'
+      - 'rhc-market-provenance/**'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-market-provenance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned ABI dependencies
+        run: python -m pip install --disable-pip-version-check --no-input eth-abi==5.2.0 eth-utils==5.3.1
+      - name: Materialize and compile remint-safe builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          cp rhc-market-provenance/common.py runtime/common.py
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('rhc-market-provenance/build.py').read_text(encoding='utf-8')
+          old_map = '''    primary_by_token = {
+        (row["nft_contract"], row["token_id"]): row
+        for row in primary_lots if row["standard"] == "ERC721"
+    }
+'''
+          new_map = '''    primary_by_token = {
+        (row["nft_contract"], row["token_id"], row["transaction_hash"]): row
+        for row in primary_lots if row["standard"] == "ERC721"
+    }
+'''
+          old_lookup = '                lot = primary_by_token.get(token_key)\n'
+          new_lookup = '                lot = primary_by_token.get((token_key[0], token_key[1], row["transaction_hash"]))\n'
+          if source.count(old_map) != 1 or source.count(old_lookup) != 1:
+              raise SystemExit('expected deterministic remint-safety patch targets')
+          source = source.replace(old_map, new_map).replace(old_lookup, new_lookup)
+          Path('runtime/build.py').write_text(source, encoding='utf-8')
+          PY
+          python -m py_compile runtime/common.py runtime/build.py
+          sha256sum rhc-market-provenance/common.py rhc-market-provenance/build.py runtime/common.py runtime/build.py > runtime/BUILDER_SHA256SUMS.txt
+      - name: Wait for complete sources and build market provenance
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: PYTHONPATH=runtime python runtime/build.py
+      - name: Preserve exact executed builder
+        if: always()
+        run: |
+          mkdir -p rhc-market-provenance-output/runtime
+          cp runtime/common.py runtime/build.py runtime/BUILDER_SHA256SUMS.txt rhc-market-provenance-output/runtime/
+      - name: Upload market provenance dataset
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-market-provenance
+          path: rhc-market-provenance-output/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 9
+      - name: Commit immutable source IDs and status
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rhc-market-provenance-stage/
+          if git diff --cached --quiet; then
+            echo 'No market provenance status changes.'
+          else
+            git commit -m 'data: record market provenance status [skip ci]'
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
