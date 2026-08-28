@@ -1,0 +1,81 @@
+name: RHC complete per-contract NFT transfer universe v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-token-transfer-universe-v2.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: rhc-token-transfer-universe-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned event hashing dependency
+        run: python -m pip install --disable-pip-version-check --no-input eth-utils==5.3.1
+      - name: Materialize and compile corrected collector
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('rhc-token-transfer-universe/collect_shard.py').read_text(encoding='utf-8')
+          old = '''    selected = sorted(
+        row for row in project_rows
+        if shard_for(row["nft_contract"].lower()) == args.shard
+    , key=lambda row: row["nft_contract"])
+'''
+          new = '''    selected = sorted(
+        [
+            row for row in project_rows
+            if shard_for(row["nft_contract"].lower()) == args.shard
+        ],
+        key=lambda row: row["nft_contract"],
+    )
+'''
+          if source.count(old) != 1:
+              raise SystemExit('expected exactly one deterministic syntax patch target')
+          corrected = source.replace(old, new)
+          Path('runtime/collect_shard.py').write_text(corrected, encoding='utf-8')
+          PY
+          python -m py_compile runtime/collect_shard.py
+          sha256sum rhc-token-transfer-universe/collect_shard.py runtime/collect_shard.py > runtime/COLLECTOR_SHA256SUMS.txt
+      - name: Collect deterministic contract shard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python runtime/collect_shard.py \
+            --shard '${{ matrix.shard }}' \
+            --out 'out-transfer-${{ matrix.shard }}'
+      - name: Preserve corrected collector
+        if: always()
+        run: |
+          mkdir -p out-transfer-${{ matrix.shard }}/runtime
+          cp runtime/collect_shard.py runtime/COLLECTOR_SHA256SUMS.txt out-transfer-${{ matrix.shard }}/runtime/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-token-transfer-universe-v2-${{ matrix.shard }}
+          path: out-transfer-${{ matrix.shard }}/
+          retention-days: 10
+          if-no-files-found: error
+          compression-level: 9
