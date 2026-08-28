@@ -1,0 +1,167 @@
+name: RHC P0 token owner provenance probe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-p0-owner-probe.yml'
+      - 'p0-owner-probe/**'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Locate historical owner transition for Mini Broker 1692
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out-p0-owner
+          python - <<'PY'
+          import hashlib, json, pathlib, random, time, urllib.error, urllib.parse, urllib.request
+
+          OUT=pathlib.Path('out-p0-owner')
+          RPC='https://rpc.mainnet.chain.robinhood.com'
+          EXPLORERS=['https://robinhoodchain.blockscout.com','https://explorer.hoodmarketcap.com']
+          UA='RHC-P0-Owner-Provenance/1.0'
+          CONTRACT='0x66007297055229066d86294a18edb6e1a2db32d7'
+          TOKEN_ID=1692
+          INITIAL_OWNER='0xef6b8fc64e1308a974faebd021ba7b6380fc3299'
+          TARGET_OWNER='0x76d387388bea6b60ca6d1e97f446f7e26d39d313'
+          MINT_BLOCK=45765797
+          APPROVAL_BLOCK=46814285
+          SALE_BLOCK=46817991
+          OWNER_OF='0x6352211e'+hex(TOKEN_ID)[2:].rjust(64,'0')
+          last=0.0
+
+          def pace():
+              global last
+              wait=.12-(time.monotonic()-last)
+              if wait>0: time.sleep(wait)
+
+          def request(url,data=None,headers=None,attempts=6):
+              global last
+              hdr={'User-Agent':UA,'Accept':'application/json'}
+              if headers: hdr.update(headers)
+              err=None
+              for n in range(attempts):
+                  pace()
+                  try:
+                      req=urllib.request.Request(url,data=data,headers=hdr,method='POST' if data is not None else 'GET')
+                      with urllib.request.urlopen(req,timeout=45) as r:
+                          body=r.read(); last=time.monotonic(); return r.status,body
+                  except urllib.error.HTTPError as e:
+                      body=e.read(); last=time.monotonic()
+                      if e.code in (400,401,403,404): return e.code,body
+                      err=e
+                  except Exception as e: err=e
+                  if n+1<attempts: time.sleep(min(12,2**n+random.random()))
+              raise RuntimeError(f'{url}: {err!r}')
+
+          def rpc(method,params):
+              raw=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode()
+              status,body=request(RPC,raw,{'Content-Type':'application/json'})
+              data=json.loads(body)
+              if status!=200 or data.get('error'): raise RuntimeError(f'{method}: {status} {data}')
+              return data.get('result')
+
+          def get_json(url,params=None):
+              if params: url += ('&' if '?' in url else '?')+urllib.parse.urlencode(params)
+              status,body=request(url)
+              try: payload=json.loads(body.decode())
+              except Exception: payload={'raw':body.decode('utf-8','replace')[:2000]}
+              return status,payload,url
+
+          def owner_at(block):
+              result=rpc('eth_call',[{'to':CONTRACT,'data':OWNER_OF},hex(block)])
+              if not isinstance(result,str) or len(result)<42: return None
+              return '0x'+result[-40:].lower()
+
+          checks={}
+          for block in [MINT_BLOCK,MINT_BLOCK+1,APPROVAL_BLOCK-1,APPROVAL_BLOCK,SALE_BLOCK-1]:
+              try: checks[str(block)]=owner_at(block)
+              except Exception as e: checks[str(block)]={'error':repr(e)}
+
+          archive_supported=isinstance(checks.get(str(MINT_BLOCK)),str) and isinstance(checks.get(str(SALE_BLOCK-1)),str)
+          transition=None
+          if archive_supported and checks[str(MINT_BLOCK)]!=checks[str(SALE_BLOCK-1)]:
+              lo,hi=MINT_BLOCK,SALE_BLOCK-1
+              initial=checks[str(MINT_BLOCK)]
+              while lo+1<hi:
+                  mid=(lo+hi)//2
+                  value=owner_at(mid)
+                  if value==initial: lo=mid
+                  else: hi=mid
+              transition={'last_initial_block':lo,'first_changed_block':hi,'owner_before':owner_at(lo),'owner_after':owner_at(hi)}
+
+          instance_results=[]
+          paths=[
+              f'/api/v2/tokens/{CONTRACT}/instances/{TOKEN_ID}',
+              f'/api/v2/tokens/{CONTRACT}/instances/{TOKEN_ID}/transfers',
+              f'/api/v2/tokens/{CONTRACT}/instances/{TOKEN_ID}/holders',
+          ]
+          for base in EXPLORERS:
+              for path in paths:
+                  status,payload,url=get_json(base+path)
+                  instance_results.append({'url':url,'status':status,'payload':payload})
+
+          transition_block=None
+          block_data=None
+          contract_logs=[]
+          candidate_receipts=[]
+          if transition:
+              transition_block=transition['first_changed_block']
+              block_data=rpc('eth_getBlockByNumber',[hex(transition_block),True])
+              status,payload,url=get_json(EXPLORERS[0]+'/api',{'module':'logs','action':'getLogs','fromBlock':transition_block,'toBlock':transition_block,'address':CONTRACT})
+              rows=payload.get('result') if isinstance(payload,dict) else None
+              contract_logs=rows if isinstance(rows,list) else []
+              txs=(block_data or {}).get('transactions') or []
+              for tx in txs:
+                  if str(tx.get('to') or '').lower()==CONTRACT:
+                      rec=rpc('eth_getTransactionReceipt',[tx['hash']])
+                      candidate_receipts.append({'tx':tx,'receipt':rec,'reason':'TX_TO_NFT_CONTRACT'})
+                  else:
+                      # Preserve receipts whose logs reveal the NFT contract.
+                      rec=rpc('eth_getTransactionReceipt',[tx['hash']])
+                      if any(str(log.get('address') or '').lower()==CONTRACT for log in (rec or {}).get('logs') or []):
+                          candidate_receipts.append({'tx':tx,'receipt':rec,'reason':'NFT_CONTRACT_LOG'})
+
+          report={
+              'contract':CONTRACT,'token_id':str(TOKEN_ID),'initial_owner_expected':INITIAL_OWNER,'target_owner':TARGET_OWNER,
+              'archive_owner_checks':checks,'archive_supported':archive_supported,'transition':transition,
+              'instance_api_results':instance_results,'transition_block_data':block_data,
+              'transition_contract_logs':contract_logs,'transition_candidate_receipts':candidate_receipts,
+          }
+          (OUT/'OWNER_PROVENANCE.json').write_text(json.dumps(report,indent=2,sort_keys=True))
+          summary={
+              'archive_supported':archive_supported,
+              'transition_found':transition is not None,
+              'transition_block':transition_block,
+              'owner_after_transition':transition.get('owner_after') if transition else None,
+              'target_owner_transition':bool(transition and transition.get('owner_after')==TARGET_OWNER),
+              'instance_endpoints_with_items':sum(bool((x['payload'].get('items') if isinstance(x['payload'],dict) else None)) for x in instance_results),
+              'candidate_receipt_count':len(candidate_receipts),
+          }
+          (OUT/'SUMMARY.json').write_text(json.dumps(summary,indent=2,sort_keys=True))
+          manifest=[]
+          for path in sorted(OUT.rglob('*')):
+              if path.is_file(): manifest.append({'path':str(path.relative_to(OUT)),'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+          (OUT/'MANIFEST.json').write_text(json.dumps(manifest,indent=2,sort_keys=True))
+          print(json.dumps(summary,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-p0-owner-provenance
+          path: out-p0-owner/
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 9
