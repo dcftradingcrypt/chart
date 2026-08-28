@@ -1,0 +1,139 @@
+name: RHC project opportunity and outcome universe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-project-universe-derivation.yml'
+      - 'rhc-data-completion/derive_project_universe.py'
+      - 'rhc-data-completion/canonical_rpc.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rhc-project-universe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Wait for consolidated canonical package on temporary branch
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p input-package
+          python - <<'PY'
+          import json, os, pathlib, time, urllib.parse, urllib.request, zipfile, io
+          repo=os.environ['REPO']; branch=os.environ['HEAD_BRANCH']
+          base=f'https://raw.githubusercontent.com/{repo}/{urllib.parse.quote(branch, safe="")}/.results'
+          index_url=base+'/rhc-canonical-package-index.json'
+          zip_url=base+'/rhc-canonical-data-consolidated.zip'
+          index=None
+          payload=None
+          for attempt in range(360):
+              try:
+                  with urllib.request.urlopen(index_url,timeout=60) as response:
+                      index=json.loads(response.read())
+                  with urllib.request.urlopen(zip_url,timeout=300) as response:
+                      payload=response.read()
+                  if payload and len(payload)==int(index['bytes']):
+                      print({'attempt':attempt,'bytes':len(payload),'sha256':index.get('sha256')},flush=True)
+                      break
+              except Exception as exc:
+                  if attempt % 10 == 0: print({'attempt':attempt,'waiting':repr(exc)},flush=True)
+              time.sleep(30)
+          if not index or not payload:
+              raise SystemExit('canonical consolidated package was not published')
+          import hashlib
+          actual=hashlib.sha256(payload).hexdigest()
+          if actual != index.get('sha256'):
+              raise SystemExit(f'canonical package SHA mismatch: {actual} != {index.get("sha256")}')
+          pathlib.Path('input-package/rhc-canonical-data-consolidated.zip').write_bytes(payload)
+          with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+              archive.extractall('input-package/extracted')
+          pathlib.Path('input-package/package-index.json').write_text(json.dumps(index,indent=2,sort_keys=True))
+          PY
+      - name: Enforce canonical package completeness before derivation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pathlib
+          matches=list(pathlib.Path('input-package/extracted').rglob('DATA_COMPLETENESS.json'))
+          assert len(matches)==1, matches
+          report=json.loads(matches[0].read_text())
+          if report.get('status')!='PASS' or not report.get('data_collection_complete_for_wallet_verification'):
+              raise SystemExit(json.dumps({'code':'CANONICAL_INPUT_NOT_COMPLETE','report':report},sort_keys=True))
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Derive full opportunity, outcome, and Selection Alpha datasets
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=rhc-data-completion python rhc-data-completion/derive_project_universe.py \
+            --canonical-dir input-package/extracted \
+            --out out-project-universe
+      - name: Enforce derived dataset completeness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pathlib
+          report=json.loads(pathlib.Path('out-project-universe/VALIDATION.json').read_text())
+          failures=[]
+          if report.get('status')!='PASS': failures.append({'code':'DERIVATION_VALIDATION_NOT_PASS','value':report.get('status')})
+          for key in ('seadrop_event_rows','seaport_event_rows','project_opportunity_rows','paid_public_opportunities','wallet_project_entry_rows'):
+              if int(report.get(key) or 0)<=0: failures.append({'code':'EMPTY_REQUIRED_DATASET','key':key})
+          if int(report.get('missing_block_count') or 0): failures.append({'code':'BLOCK_TIMESTAMPS_MISSING','count':report.get('missing_block_count')})
+          if int(report.get('missing_receipt_count') or 0): failures.append({'code':'RECEIPTS_MISSING','count':report.get('missing_receipt_count')})
+          if int(report.get('order_decode_errors') or 0): failures.append({'code':'SEAPORT_DECODE_ERRORS','count':report.get('order_decode_errors')})
+          result={'status':'PASS' if not failures else 'FAIL','failures':failures,'source_validation':report,'deepseek_handoff_allowed':False,'production_approved_wallets':0}
+          pathlib.Path('out-project-universe/FINAL_GATE.json').write_text(json.dumps(result,indent=2,sort_keys=True))
+          print(json.dumps(result,sort_keys=True))
+          if failures: raise SystemExit(1)
+          PY
+      - name: Package and publish immutable project-universe result
+        if: always()
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p .results
+          python - <<'PY'
+          import hashlib, json, pathlib, zipfile, os, shutil
+          source=pathlib.Path('out-project-universe')
+          archive=pathlib.Path('.results/rhc-project-universe-v1.zip')
+          if archive.exists(): archive.unlink()
+          with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              if source.exists():
+                  for path in sorted(source.rglob('*')):
+                      if path.is_file(): z.write(path,path.relative_to(source.parent))
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          index={'package':archive.name,'bytes':archive.stat().st_size,'sha256':digest,'publisher_run_id':int(os.environ['GITHUB_RUN_ID']),'files':[str(p.relative_to(source)) for p in sorted(source.rglob('*')) if p.is_file()] if source.exists() else []}
+          pathlib.Path('.results/rhc-project-universe-v1-index.json').write_text(json.dumps(index,indent=2,sort_keys=True))
+          pathlib.Path('.results/rhc-project-universe-v1.zip.sha256').write_text(digest+'  '+archive.name+'\n')
+          for name in ('VALIDATION.json','FINAL_GATE.json'):
+              path=source/name
+              if path.exists(): shutil.copy2(path,pathlib.Path('.results')/f'rhc-project-universe-{name.lower()}')
+          if archive.stat().st_size > 90_000_000: raise SystemExit('derived package exceeds GitHub file limit')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .results/
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'chore: publish project opportunity universe [skip ci]'
+          git push origin "HEAD:${HEAD_BRANCH}"
