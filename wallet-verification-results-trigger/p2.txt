@@ -1,0 +1,1 @@
+Persist the latest completed 16-shard P2 wallet verification run.
