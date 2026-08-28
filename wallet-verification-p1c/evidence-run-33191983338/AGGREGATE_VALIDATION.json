@@ -1,0 +1,44 @@
+{
+  "status": "FAIL",
+  "target_run_id": 33191983338,
+  "artifact_count": 5,
+  "unique_target_wallets": 5,
+  "failures": [
+    {
+      "artifact": "rhc-wallet-verification-p1c-0x43948bababa753a587fc475ced55c74760b716fc",
+      "target": {
+        "status": "FAIL",
+        "wallet": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "failures": [
+          {
+            "code": "KNOWN_TX_INDEX_MISMATCH",
+            "found": "2",
+            "expected": "3"
+          }
+        ],
+        "production_approved_wallets": 0
+      },
+      "collector": {
+        "address_nft_transfer_rows": 9236,
+        "address_transaction_rows": 3270,
+        "chain_id": 4663,
+        "decision_use": "P0_P1_CANONICAL_VERIFICATION_ONLY",
+        "error_count": 0,
+        "failures": [],
+        "known_mint_canonical_matches": 3,
+        "known_mint_expected": 3,
+        "known_mint_verified_rows": 3,
+        "known_sale_expected": 6,
+        "known_sale_receipt_matches": 6,
+        "known_sale_verified_rows": 6,
+        "p0_wallet_count": 1,
+        "production_approved_wallets": 0,
+        "source_head_block": 48457605,
+        "status": "PASS",
+        "wallet_count": 2
+      }
+    }
+  ],
+  "production_approved_wallets": 0,
+  "decision_use": "DATA_COLLECTION_ONLY"
+}

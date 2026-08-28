@@ -1,0 +1,52 @@
+[
+  {
+    "artifact_name": "rhc-wallet-verification-p1c-0x121a5da145cd6dbe322d75c514481d2efa188816",
+    "artifact_id": 9694404087,
+    "artifact_digest": "sha256:8d3a9f822f3d5030831f4350aeef36e2ddc91e01265b4c6afea6839f1e9b2469",
+    "zip_bytes": 71309,
+    "zip_sha256": "8d3a9f822f3d5030831f4350aeef36e2ddc91e01265b4c6afea6839f1e9b2469",
+    "target_wallet": "0x121a5da145cd6dbe322d75c514481d2efa188816",
+    "target_status": "PASS",
+    "collector_status": "PASS"
+  },
+  {
+    "artifact_name": "rhc-wallet-verification-p1c-0x204a9d05e454619bf713b947c3e87302f4509d3c",
+    "artifact_id": 9694232862,
+    "artifact_digest": "sha256:08b5843e020457d3a95de50b280e19103fc7df66a2aa2036aba03e5ca4ed42ad",
+    "zip_bytes": 3074249,
+    "zip_sha256": "08b5843e020457d3a95de50b280e19103fc7df66a2aa2036aba03e5ca4ed42ad",
+    "target_wallet": "0x204a9d05e454619bf713b947c3e87302f4509d3c",
+    "target_status": "PASS",
+    "collector_status": "PASS"
+  },
+  {
+    "artifact_name": "rhc-wallet-verification-p1c-0x43948bababa753a587fc475ced55c74760b716fc",
+    "artifact_id": 9694416087,
+    "artifact_digest": "sha256:6746271037903b1a55867764de01eaff8081839608aa1cb624b6dc79320e3ebc",
+    "zip_bytes": 8099890,
+    "zip_sha256": "6746271037903b1a55867764de01eaff8081839608aa1cb624b6dc79320e3ebc",
+    "target_wallet": "0x43948bababa753a587fc475ced55c74760b716fc",
+    "target_status": "FAIL",
+    "collector_status": "PASS"
+  },
+  {
+    "artifact_name": "rhc-wallet-verification-p1c-0x51e99a26a3b538a4023e0e1af16e97153056a814",
+    "artifact_id": 9694436452,
+    "artifact_digest": "sha256:a578169620f904a80f451fda08adb5b9d110b559fbb7b55394a737a45e1882c7",
+    "zip_bytes": 3044574,
+    "zip_sha256": "a578169620f904a80f451fda08adb5b9d110b559fbb7b55394a737a45e1882c7",
+    "target_wallet": "0x51e99a26a3b538a4023e0e1af16e97153056a814",
+    "target_status": "PASS",
+    "collector_status": "PASS"
+  },
+  {
+    "artifact_name": "rhc-wallet-verification-p1c-0x6ee78170825f65a2bd9cf9cda48ce2282496ddba",
+    "artifact_id": 9694521406,
+    "artifact_digest": "sha256:a98608f845892c2f57bbcf15175f5f01d3c638d7d0c51d9c72e63651aa8ed901",
+    "zip_bytes": 1050526,
+    "zip_sha256": "a98608f845892c2f57bbcf15175f5f01d3c638d7d0c51d9c72e63651aa8ed901",
+    "target_wallet": "0x6ee78170825f65a2bd9cf9cda48ce2282496ddba",
+    "target_status": "PASS",
+    "collector_status": "PASS"
+  }
+]
