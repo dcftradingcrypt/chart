@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-08-28T17:30:40.926329+00:00",
+  "generated_at_utc": "2026-08-28T17:30:54.968968+00:00",
   "rows": [
     {
       "id": "p1c",
@@ -549,11 +549,11 @@
         {
           "id": 33194939688,
           "name": "RHC canonical mint transaction enrichment",
-          "status": "in_progress",
+          "status": "queued",
           "conclusion": null,
           "head_sha": "0b1c05bdb73c3198a0f9659f30043a41c735e227",
           "created_at": "2026-08-28T17:29:47Z",
-          "updated_at": "2026-08-28T17:30:36Z"
+          "updated_at": "2026-08-28T17:30:52Z"
         }
       ],
       "validation_path": null,
