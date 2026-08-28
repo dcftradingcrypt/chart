@@ -1,0 +1,222 @@
+name: RHC canonical mint transaction enrichment
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-mint-tx-enrichment.yml'
+      - 'mint-enrichment/enrich.py'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: rhc-mint-enrichment-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    outputs:
+      tx_count: ${{ steps.index.outputs.tx_count }}
+      source_run: ${{ steps.index.outputs.source_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-mint-tx-enrichment-20260829
+          fetch-depth: 0
+      - id: index
+        name: Wait for complete contract-detail evidence and build mint transaction index
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_branch='chatgpt/rhc-nft-contract-universe-20260829'
+          validation_path=''
+          for attempt in $(seq 1 120); do
+            git fetch origin "$source_branch:refs/remotes/origin/rhc-universe-source" --force
+            validation_path="$(git ls-tree -r --name-only refs/remotes/origin/rhc-universe-source | grep '^nft-universe/contract-details-run-.*/AGGREGATE_VALIDATION.json$' | sort -V | tail -1 || true)"
+            if [[ -n "$validation_path" ]]; then
+              status="$(git show "refs/remotes/origin/rhc-universe-source:${validation_path}" | python -c 'import json,sys; print(json.load(sys.stdin).get("status"))')"
+              [[ "$status" == PASS ]] && break
+            fi
+            validation_path=''
+            sleep 120
+          done
+          [[ -n "$validation_path" ]] || { echo 'complete contract details unavailable' >&2; exit 1; }
+          source_dir="${validation_path%/AGGREGATE_VALIDATION.json}"
+          source_run="${source_dir##*-}"
+          rm -rf prerequisite-universe
+          git worktree add --detach prerequisite-universe refs/remotes/origin/rhc-universe-source
+          mkdir -p out-mint-index/extracted
+          cp "prerequisite-universe/${source_dir}"/rhc-nft-contract-details-*.zip out-mint-index/
+          python - <<'PY'
+          import gzip,hashlib,json,pathlib,zipfile
+          root=pathlib.Path('out-mint-index')
+          rows=[]; source_zips=sorted(root.glob('rhc-nft-contract-details-*.zip'))
+          if len(source_zips)!=32: raise SystemExit(f'expected 32 source zips, found {len(source_zips)}')
+          source_manifest=[]
+          for zpath in source_zips:
+              source_manifest.append({'file':zpath.name,'bytes':zpath.stat().st_size,'sha256':hashlib.sha256(zpath.read_bytes()).hexdigest()})
+              with zipfile.ZipFile(zpath) as z:
+                  members=[n for n in z.namelist() if pathlib.Path(n).name=='mint_transfers.jsonl.gz']
+                  if len(members)!=1: raise SystemExit(f'{zpath}: mint_transfers member count {len(members)}')
+                  with z.open(members[0]) as compressed:
+                      with gzip.GzipFile(fileobj=compressed,mode='rb') as raw:
+                          for line in raw:
+                              if line.strip(): rows.append(json.loads(line))
+          # Immutable event identity and full mint-transfer evidence are preserved.
+          unique_events={}
+          for row in rows:
+              key=(str(row.get('transaction_hash') or '').lower(),str(row.get('log_index') or ''),str(row.get('contract_address') or '').lower(),str(row.get('token_id') or ''))
+              if key in unique_events and unique_events[key]!=row: raise SystemExit(f'conflicting mint event {key}')
+              unique_events[key]=row
+          ordered=sorted(unique_events.values(),key=lambda r:(str(r.get('transaction_hash')),str(r.get('log_index')),str(r.get('contract_address')),str(r.get('token_id'))))
+          with gzip.open(root/'mint_transactions_index.jsonl.gz','wt',encoding='utf-8') as f:
+              for row in ordered:f.write(json.dumps(row,sort_keys=True)+'\n')
+          unique_txs=sorted({str(row.get('transaction_hash') or '').lower() for row in ordered if str(row.get('transaction_hash') or '').startswith('0x') and len(str(row.get('transaction_hash')))==66})
+          report={'status':'PASS','source_zip_count':len(source_zips),'mint_transfer_rows':len(ordered),'unique_mint_transactions':len(unique_txs),'source_manifest':source_manifest,'production_approved_wallets':0,'decision_use':'PRIMARY_MINT_TX_INDEX'}
+          (root/'MINT_INDEX_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+          tx_count="$(python -c 'import json;print(json.load(open("out-mint-index/MINT_INDEX_VALIDATION.json"))["unique_mint_transactions"])')"
+          echo "tx_count=${tx_count}" >> "$GITHUB_OUTPUT"
+          echo "source_run=${source_run}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rhc-mint-transaction-index
+          path: |
+            out-mint-index/mint_transactions_index.jsonl.gz
+            out-mint-index/MINT_INDEX_VALIDATION.json
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
+
+  enrich:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-mint-transaction-index
+          path: input-index
+      - name: Enrich exact mint transactions, receipts, blocks, gas, ERC-20 and internal payments
+        run: |
+          python mint-enrichment/enrich.py \
+            --index input-index/mint_transactions_index.jsonl.gz \
+            --shard '${{ matrix.shard }}' \
+            --shard-count 64 \
+            --out out-mint-enrichment
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-mint-enrichment-${{ matrix.shard }}
+          path: out-mint-enrichment/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    if: always()
+    needs: [prepare, enrich]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-mint-tx-enrichment-20260829
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-mint-transaction-index
+          path: input-index
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-mint-enrichment-*
+          path: downloaded-enrichment
+          merge-multiple: false
+      - name: Merge all 64 shards and enforce exact transaction coverage
+        shell: bash
+        run: |
+          python - <<'PY'
+          import gzip,hashlib,json,pathlib
+          root=pathlib.Path('downloaded-enrichment'); out=pathlib.Path('aggregate-mint-enrichment');out.mkdir(exist_ok=True)
+          index_validation=json.load(open('input-index/MINT_INDEX_VALIDATION.json'))
+          failures=[]; manifest=[]; tx_rows={}; payment_rows={}; shard_validations=[]
+          for shard in range(64):
+              d=root/f'rhc-mint-enrichment-{shard}'
+              if not d.exists(): failures.append({'code':'MISSING_SHARD','shard':shard});continue
+              vp=d/'VALIDATION.json'
+              if not vp.exists(): failures.append({'code':'MISSING_VALIDATION','shard':shard});continue
+              vr=json.loads(vp.read_text());shard_validations.append(vr)
+              if vr.get('status')!='PASS': failures.append({'code':'SHARD_NOT_PASS','shard':shard,'validation':vr})
+              for filename,dest in [('mint_transactions.jsonl.gz',tx_rows),('mint_payment_flows.jsonl.gz',payment_rows)]:
+                  p=d/filename
+                  if not p.exists(): failures.append({'code':'MISSING_FILE','shard':shard,'file':filename});continue
+                  with gzip.open(p,'rt',encoding='utf-8') as f:
+                      for line in f:
+                          if not line.strip():continue
+                          row=json.loads(line); key=row['transaction_hash']
+                          if key in dest and dest[key]!=row: failures.append({'code':'CONFLICTING_DUPLICATE_TX','transaction_hash':key,'file':filename})
+                          dest[key]=row
+              manifest.append({'shard':shard,'validation_status':vr.get('status'),'selected_transactions':vr.get('selected_transactions'),'enriched_transactions':vr.get('enriched_transactions')})
+          expected=int(index_validation['unique_mint_transactions'])
+          if len(tx_rows)!=expected: failures.append({'code':'TRANSACTION_COVERAGE_MISMATCH','expected':expected,'actual':len(tx_rows)})
+          if len(payment_rows)!=expected: failures.append({'code':'PAYMENT_COVERAGE_MISMATCH','expected':expected,'actual':len(payment_rows)})
+          with gzip.open(out/'mint_transactions.jsonl.gz','wt',encoding='utf-8') as f:
+              for key in sorted(tx_rows):f.write(json.dumps(tx_rows[key],sort_keys=True)+'\n')
+          with gzip.open(out/'mint_payment_flows.jsonl.gz','wt',encoding='utf-8') as f:
+              for key in sorted(payment_rows):f.write(json.dumps(payment_rows[key],sort_keys=True)+'\n')
+          files=[]
+          for p in sorted(out.iterdir()):files.append({'path':p.name,'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          report={'status':'PASS' if not failures else 'FAIL','source_contract_details_run':'${{ needs.prepare.outputs.source_run }}','source_unique_mint_transactions':expected,'artifact_count':len(manifest),'enriched_transactions':len(tx_rows),'payment_rows':len(payment_rows),'failure_count':len(failures),'failures':failures,'files':files,'production_approved_wallets':0,'decision_use':'PRIMARY_MINT_COST_AND_ROUTE_INPUT'}
+          (out/'AGGREGATE_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          (out/'SHARD_MANIFEST.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Commit immutable mint enrichment evidence to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="mint-enrichment/evidence-run-${GITHUB_RUN_ID}"
+          rm -rf "$dest";mkdir -p "$dest"
+          cp aggregate-mint-enrichment/* input-index/MINT_INDEX_VALIDATION.json "$dest/"
+          git config user.name 'rhc-data-collector'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$dest"
+          git commit -m "data: persist complete mint transaction enrichment run ${GITHUB_RUN_ID}"
+          for attempt in $(seq 1 10);do
+            git fetch origin chatgpt/rhc-mint-tx-enrichment-20260829
+            git rebase origin/chatgpt/rhc-mint-tx-enrichment-20260829
+            if git push origin HEAD:chatgpt/rhc-mint-tx-enrichment-20260829;then break;fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done
+      - name: Enforce final aggregate after persistence
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('aggregate-mint-enrichment/AGGREGATE_VALIDATION.json'))
+          assert d['status']=='PASS',d
+          assert d['enriched_transactions']==d['source_unique_mint_transactions'],d
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-mint-enrichment-aggregate
+          path: aggregate-mint-enrichment/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
