@@ -1,0 +1,24 @@
+{
+  "generated_at_utc": "2026-08-28T17:26:07.836896+00:00",
+  "reason": "SUPERSEDED_BY_MINT_ONLY_AND_SALE_ONLY_COLLECTION",
+  "results": [
+    {
+      "branch": "chatgpt/rhc-mint-tx-enrichment-20260829",
+      "workflow": "RHC canonical mint transaction enrichment",
+      "run_id": 33193300886,
+      "prior_status": "in_progress",
+      "cancel_http_ok": true,
+      "stdout": "{}",
+      "stderr": ""
+    },
+    {
+      "branch": "chatgpt/rhc-nft-contract-universe-20260829",
+      "workflow": "RHC NFT contract details and full transfer histories",
+      "run_id": 33192679515,
+      "prior_status": "queued",
+      "cancel_http_ok": true,
+      "stdout": "{}",
+      "stderr": ""
+    }
+  ]
+}
