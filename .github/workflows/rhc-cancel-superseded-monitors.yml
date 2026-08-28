@@ -1,0 +1,67 @@
+name: Cancel superseded RHC monitor jobs
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-cancel-superseded-monitors.yml'
+      - 'data-collection-monitor/TRIGGER_CANCEL_OLD_MONITORS.txt'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MONITOR_BRANCH: chatgpt/rhc-data-collection-monitor-20260829
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-data-collection-monitor-20260829
+          fetch-depth: 0
+      - name: Cancel exact superseded workflow names only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data-collection-monitor/cancellations
+          python - <<'PY'
+          import datetime,json,os,pathlib,subprocess
+          repo=os.environ['GITHUB_REPOSITORY']
+          branch='chatgpt/rhc-data-collection-monitor-20260829'
+          superseded={
+              'Monitor complete RHC NFT data collection',
+          }
+          cp=subprocess.run(['gh','api','--paginate',f'/repos/{repo}/actions/runs?branch={branch}&per_page=100'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+          if cp.returncode: raise SystemExit(cp.stderr)
+          data=json.loads(cp.stdout);results=[]
+          for row in data.get('workflow_runs',[]):
+              if row.get('name') not in superseded or row.get('status') not in {'queued','in_progress','pending','waiting','requested'}:
+                  continue
+              cancel=subprocess.run(['gh','api','-X','POST',f"/repos/{repo}/actions/runs/{row['id']}/cancel"],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+              results.append({'run_id':row['id'],'name':row.get('name'),'prior_status':row.get('status'),'cancel_ok':cancel.returncode==0,'stderr':cancel.stderr[-1000:]})
+          report={'generated_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'superseded_names':sorted(superseded),'results':results}
+          path=pathlib.Path('data-collection-monitor/cancellations/SUPERSEDED_MONITORS.json')
+          path.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          if any(not row['cancel_ok'] for row in results): raise SystemExit(1)
+          PY
+      - name: Persist cancellation record
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rhc-data-monitor'
+          git config user.email 'actions@users.noreply.github.com'
+          git add data-collection-monitor/cancellations/SUPERSEDED_MONITORS.json
+          git commit -m 'data: record superseded monitor cancellation'
+          for attempt in $(seq 1 10);do
+            git fetch origin "$MONITOR_BRANCH"
+            git rebase "origin/$MONITOR_BRANCH"
+            if git push origin "HEAD:$MONITOR_BRANCH";then break;fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done
