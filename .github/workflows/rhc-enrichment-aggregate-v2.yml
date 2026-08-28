@@ -1,0 +1,87 @@
+name: RHC aggregate all transaction and contract enrichment v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-enrichment-aggregate-v2.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-enrichment-aggregate-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Materialize and compile v2 source binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('rhc-enrichment-aggregate/aggregate.py').read_text(encoding='utf-8')
+          replacements = {
+              'SOURCE_WORKFLOW = "RHC enrich all NFT transactions blocks and contracts"':
+                  'SOURCE_WORKFLOW = "RHC enrich all NFT transactions blocks and contracts v2"',
+              'ARTIFACT_PREFIX = "rhc-tx-contract-enrichment-"':
+                  'ARTIFACT_PREFIX = "rhc-tx-contract-enrichment-v2-"',
+              'Path("rhc-enrichment-aggregate-output")':
+                  'Path("rhc-enrichment-aggregate-v2-output")',
+              'Path("rhc-enrichment-aggregate-stage")':
+                  'Path("rhc-enrichment-aggregate-v2-stage")',
+          }
+          for old, new in replacements.items():
+              if source.count(old) != 1:
+                  raise SystemExit(f'expected one patch target: {old}')
+              source = source.replace(old, new)
+          Path('runtime/aggregate.py').write_text(source, encoding='utf-8')
+          PY
+          python -m py_compile runtime/aggregate.py
+          sha256sum rhc-enrichment-aggregate/aggregate.py runtime/aggregate.py > runtime/AGGREGATOR_SHA256SUMS.txt
+      - name: Wait for all v2 enrichment shards and merge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python runtime/aggregate.py
+      - name: Preserve patched aggregator
+        if: always()
+        run: |
+          mkdir -p rhc-enrichment-aggregate-v2-output/runtime
+          cp runtime/aggregate.py runtime/AGGREGATOR_SHA256SUMS.txt rhc-enrichment-aggregate-v2-output/runtime/
+      - name: Upload complete v2 enrichment aggregate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhc-enrichment-aggregate-v2
+          path: rhc-enrichment-aggregate-v2-output/
+          retention-days: 10
+          if-no-files-found: error
+          compression-level: 9
+      - name: Commit immutable source run and status
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rhc-enrichment-aggregate-v2-stage/
+          if git diff --cached --quiet; then
+            echo 'No v2 enrichment aggregate status changes.'
+          else
+            git commit -m 'data: record v2 enrichment aggregate status [skip ci]'
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
