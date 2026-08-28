@@ -1,0 +1,226 @@
+name: RHC NFT population and complete transfer history
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-nft-population-history.yml'
+      - 'nft-population/**'
+      - 'nft-population-trigger.txt'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-nft-population-history-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  head:
+    runs-on: ubuntu-latest
+    outputs:
+      head: ${{ steps.capture.outputs.head }}
+    steps:
+      - id: capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, urllib.request
+          body=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode()
+          req=urllib.request.Request('https://rpc.mainnet.chain.robinhood.com',data=body,headers={'Content-Type':'application/json','User-Agent':'rhc-nft-head/1.0'})
+          with urllib.request.urlopen(req,timeout=60) as response:
+              result=json.loads(response.read())['result']
+          print(f'head={max(0,int(result,16)-1000)}')
+          PY
+
+  population:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch complete ERC-721 and ERC-1155 contract population
+        run: python nft-population/fetch_population.py --out out-population
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-nft-contract-population
+          path: out-population/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
+
+  transfers:
+    needs: [head, population]
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic Keccak implementation
+        run: python -m pip install --disable-pip-version-check --no-input pycryptodome==3.23.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-nft-contract-population
+          path: population-input
+      - name: Collect full transfer history for contract shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python nft-population/collect_transfers.py \
+            --contracts population-input/contracts.jsonl \
+            --shard '${{ matrix.shard }}' \
+            --shards 32 \
+            --head '${{ needs.head.outputs.head }}' \
+            --out 'out-transfers-${{ matrix.shard }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-nft-transfers-${{ matrix.shard }}
+          path: out-transfers-${{ matrix.shard }}/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    needs: [head, population, transfers]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-wallet-verification-p0p1-20260828
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-nft-contract-population
+          path: downloaded-population
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-nft-transfers-*
+          path: downloaded-transfers
+      - name: Merge population, transfer lifecycle, and mint transaction evidence
+        env:
+          FIXED_HEAD: ${{ needs.head.outputs.head }}
+          POPULATION_RESULT: ${{ needs.population.result }}
+          TRANSFER_RESULT: ${{ needs.transfers.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gzip, hashlib, json, os, pathlib, shutil
+
+          population=pathlib.Path('downloaded-population')
+          shards=pathlib.Path('downloaded-transfers')
+          target=pathlib.Path('nft-population-results')
+          if target.exists():
+              shutil.rmtree(target)
+          target.mkdir()
+          shutil.copytree(population,target/'population')
+
+          contracts=[json.loads(line) for line in (population/'contracts.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
+          expected_addresses={row['contract_address'].lower() for row in contracts}
+          seen_addresses=set()
+          transfer_rows={}
+          mint_rows={}
+          validations=[]
+          missing=[]
+          for shard in range(32):
+              d=shards/f'rhc-nft-transfers-{shard}'
+              if not d.exists():
+                  missing.append(shard)
+                  continue
+              validation_path=d/'VALIDATION.json'
+              if not validation_path.exists():
+                  missing.append(shard)
+                  continue
+              validation=json.loads(validation_path.read_text(encoding='utf-8'))
+              validations.append(validation)
+              selected_path=d/'selected_contracts.json'
+              if selected_path.exists():
+                  selected=json.loads(selected_path.read_text(encoding='utf-8'))
+                  seen_addresses.update(row['contract_address'].lower() for row in selected)
+              transfer_path=d/'transfers.jsonl.gz'
+              if transfer_path.exists():
+                  with gzip.open(transfer_path,'rt',encoding='utf-8') as handle:
+                      for line in handle:
+                          row=json.loads(line)
+                          key=(row['block_hash'],row['transaction_hash'],row['log_index'],row.get('batch_item_index',0))
+                          transfer_rows[key]=row
+              mint_path=d/'mint_transactions.jsonl'
+              if mint_path.exists():
+                  for line in mint_path.read_text(encoding='utf-8').splitlines():
+                      if line.strip():
+                          row=json.loads(line)
+                          key=(row['transaction_hash'],row['contract_address'])
+                          mint_rows[key]=row
+
+          failures=[]
+          if missing:
+              failures.append({'code':'MISSING_TRANSFER_SHARDS','shards':missing})
+          failed=[row for row in validations if row.get('status')!='PASS']
+          if failed:
+              failures.append({'code':'TRANSFER_SHARD_FAILURE','count':len(failed)})
+          if seen_addresses!=expected_addresses:
+              failures.append({'code':'CONTRACT_COVERAGE_MISMATCH','missing':sorted(expected_addresses-seen_addresses),'unexpected':sorted(seen_addresses-expected_addresses)})
+
+          with gzip.open(target/'all_transfers.jsonl.gz','wt',encoding='utf-8',newline='\n') as handle:
+              for row in sorted(transfer_rows.values(),key=lambda value:(value['block_number'],value['transaction_index'],value['log_index'],value.get('batch_item_index',0))):
+                  handle.write(json.dumps(row,ensure_ascii=False,sort_keys=True)+'\n')
+          with (target/'all_mint_transactions.jsonl').open('w',encoding='utf-8',newline='\n') as handle:
+              for row in sorted(mint_rows.values(),key=lambda value:(value['block_number'],value['transaction_hash'],value['contract_address'])):
+                  handle.write(json.dumps(row,ensure_ascii=False,sort_keys=True)+'\n')
+
+          report={
+              'status':'PASS' if not failures and os.environ['POPULATION_RESULT']=='success' and os.environ['TRANSFER_RESULT']=='success' else 'FAIL',
+              'fixed_head':int(os.environ['FIXED_HEAD']),
+              'population_job_result':os.environ['POPULATION_RESULT'],
+              'transfer_matrix_result':os.environ['TRANSFER_RESULT'],
+              'contract_count':len(expected_addresses),
+              'contracts_covered':len(seen_addresses),
+              'decoded_transfer_rows':len(transfer_rows),
+              'mint_transaction_rows':len(mint_rows),
+              'shards_found':len(validations),
+              'failures':failures,
+              'production_approved_wallets':0,
+          }
+          (target/'VALIDATION.json').write_text(json.dumps(report,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+          manifest=[]
+          for p in sorted(target.rglob('*')):
+              if p.is_file():
+                  manifest.append({'path':str(p.relative_to(target)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (target/'MANIFEST.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Commit complete NFT population and lifecycle evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add nft-population-results
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: persist complete NFT population and transfer histories'
+            git push origin HEAD:chatgpt/rhc-wallet-verification-p0p1-20260828
+          fi
+          python - <<'PY'
+          import json
+          report=json.load(open('nft-population-results/VALIDATION.json'))
+          if report['status']!='PASS':
+              raise SystemExit(1)
+          PY
