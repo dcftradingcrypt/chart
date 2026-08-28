@@ -1,0 +1,120 @@
+name: RHC global zero-address NFT mint probe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-global-mint-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe global mint log filters
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out-global-mint-probe
+          python - <<'PY'
+          import hashlib, json, pathlib, time, urllib.parse, urllib.request, urllib.error
+
+          out=pathlib.Path('out-global-mint-probe')
+          head=48_264_433
+          zero='0x'+'0'*64
+          targets={
+            'transfer_zero_from': {
+              'topic0':'0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+              'topic1':zero,
+              'topic0_1_opr':'and',
+            },
+            'erc1155_single_zero_from': {
+              'topic0':'0xc3d58168c5bfaaae51d3d86cf20b5b1d7052f790f4f7c7c6f2a6a0f62f1a66f7',
+              'topic2':zero,
+              'topic0_2_opr':'and',
+            },
+            'erc1155_batch_zero_from': {
+              'topic0':'0x4a39dc06d4c0dbc64b70be4e51d0d2c8a3f83d0af3c7a3b5a3d2e8f4f6c7c8d9',
+              'topic2':zero,
+              'topic0_2_opr':'and',
+            },
+          }
+          # Correct event hashes are asserted from signatures below; the literal
+          # values are replaced before requests if a mismatch is detected.
+          from Crypto.Hash import keccak
+          signatures={
+            'transfer_zero_from':'Transfer(address,address,uint256)',
+            'erc1155_single_zero_from':'TransferSingle(address,address,address,uint256,uint256)',
+            'erc1155_batch_zero_from':'TransferBatch(address,address,address,uint256[],uint256[])',
+          }
+          for name,sig in signatures.items():
+            k=keccak.new(digest_bits=256); k.update(sig.encode())
+            targets[name]['topic0']='0x'+k.hexdigest()
+
+          bases=['https://robinhoodchain.blockscout.com/api','https://explorer.hoodmarketcap.com/api']
+          ranges={'full':(0,head),'recent_1m':(max(0,head-1_000_000),head),'early_5m':(0,5_000_000)}
+          summaries=[]
+          for name,topic_params in targets.items():
+            for range_name,(start,end) in ranges.items():
+              success=False
+              errors=[]
+              for base in bases:
+                params={'module':'logs','action':'getLogs','fromBlock':start,'toBlock':end,**topic_params}
+                url=base+'?'+urllib.parse.urlencode(params)
+                try:
+                  req=urllib.request.Request(url,headers={'User-Agent':'RHC-Global-Mint-Probe/1.0','Accept':'application/json'})
+                  with urllib.request.urlopen(req,timeout=90) as response:
+                    raw=response.read(); status=response.status
+                  payload=json.loads(raw)
+                  rows=payload.get('result') if isinstance(payload,dict) else None
+                  if not isinstance(rows,list):
+                    raise RuntimeError(repr(payload)[:1000])
+                  record={
+                    'target':name,'range':range_name,'from_block':start,'to_block':end,
+                    'endpoint':base,'http_status':status,'rows':len(rows),
+                    'message':payload.get('message'),'status':payload.get('status'),
+                    'first_block':int(rows[0]['blockNumber'],16) if rows else None,
+                    'last_block':int(rows[-1]['blockNumber'],16) if rows else None,
+                    'topic_counts':sorted({len(row.get('topics') or []) for row in rows}),
+                  }
+                  (out/f'{name}__{range_name}.json').write_bytes(raw)
+                  summaries.append(record); print(record,flush=True)
+                  success=True; break
+                except Exception as exc:
+                  errors.append(f'{base}:{exc!r}'); time.sleep(3)
+              if not success:
+                summaries.append({'target':name,'range':range_name,'from_block':start,'to_block':end,'errors':errors})
+          (out/'summary.json').write_text(json.dumps(summaries,indent=2,sort_keys=True),encoding='utf-8')
+          validation={
+            'status':'PASS' if all('rows' in row for row in summaries) else 'FAIL',
+            'fixed_head':head,
+            'queries':len(summaries),
+            'successful_queries':sum('rows' in row for row in summaries),
+            'global_erc721_filter_supported':any(row.get('target')=='transfer_zero_from' and 'rows' in row for row in summaries),
+            'global_erc1155_single_filter_supported':any(row.get('target')=='erc1155_single_zero_from' and 'rows' in row for row in summaries),
+            'global_erc1155_batch_filter_supported':any(row.get('target')=='erc1155_batch_zero_from' and 'rows' in row for row in summaries),
+          }
+          (out/'validation.json').write_text(json.dumps(validation,indent=2,sort_keys=True),encoding='utf-8')
+          manifest=[]
+          for path in sorted(out.iterdir()):
+            if path.is_file(): manifest.append({'path':path.name,'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+          (out/'manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True),encoding='utf-8')
+          print(validation)
+          if validation['status']!='PASS': raise SystemExit(1)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-global-mint-probe
+          path: out-global-mint-probe/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
