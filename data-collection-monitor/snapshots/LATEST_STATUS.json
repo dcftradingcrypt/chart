@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-08-28T17:26:29.892367+00:00",
+  "generated_at_utc": "2026-08-28T17:30:40.926329+00:00",
   "rows": [
     {
       "id": "p1c",
@@ -317,22 +317,22 @@
       "branch_error": null,
       "workflow_runs": [
         {
-          "id": 33192679430,
-          "name": "RHC NFT contract universe",
+          "id": 33194717771,
+          "name": "RHC NFT contract details and full transfer histories",
           "status": "completed",
-          "conclusion": "failure",
-          "head_sha": "7534232c02fb2f90ce6dad18975f56238b1114cc",
-          "created_at": "2026-08-28T17:00:50Z",
-          "updated_at": "2026-08-28T17:01:07Z"
+          "conclusion": "action_required",
+          "head_sha": "0fcfab8a857c269a54a5059591dfad73b55eb074",
+          "created_at": "2026-08-28T17:26:53Z",
+          "updated_at": "2026-08-28T17:26:53Z"
         },
         {
-          "id": 33192679515,
-          "name": "RHC NFT contract details and full transfer histories",
-          "status": "in_progress",
-          "conclusion": null,
-          "head_sha": "7534232c02fb2f90ce6dad18975f56238b1114cc",
-          "created_at": "2026-08-28T17:00:50Z",
-          "updated_at": "2026-08-28T17:26:24Z"
+          "id": 33194717743,
+          "name": "RHC NFT contract universe",
+          "status": "completed",
+          "conclusion": "action_required",
+          "head_sha": "0fcfab8a857c269a54a5059591dfad73b55eb074",
+          "created_at": "2026-08-28T17:26:52Z",
+          "updated_at": "2026-08-28T17:26:52Z"
         }
       ],
       "validation_path": null,
@@ -345,26 +345,172 @@
       "branch_error": null,
       "workflow_runs": [
         {
-          "id": 33192679430,
-          "name": "RHC NFT contract universe",
+          "id": 33194717771,
+          "name": "RHC NFT contract details and full transfer histories",
           "status": "completed",
-          "conclusion": "failure",
-          "head_sha": "7534232c02fb2f90ce6dad18975f56238b1114cc",
-          "created_at": "2026-08-28T17:00:50Z",
-          "updated_at": "2026-08-28T17:01:07Z"
+          "conclusion": "action_required",
+          "head_sha": "0fcfab8a857c269a54a5059591dfad73b55eb074",
+          "created_at": "2026-08-28T17:26:53Z",
+          "updated_at": "2026-08-28T17:26:53Z"
         },
         {
-          "id": 33192679515,
-          "name": "RHC NFT contract details and full transfer histories",
-          "status": "in_progress",
-          "conclusion": null,
-          "head_sha": "7534232c02fb2f90ce6dad18975f56238b1114cc",
-          "created_at": "2026-08-28T17:00:50Z",
-          "updated_at": "2026-08-28T17:26:24Z"
+          "id": 33194717743,
+          "name": "RHC NFT contract universe",
+          "status": "completed",
+          "conclusion": "action_required",
+          "head_sha": "0fcfab8a857c269a54a5059591dfad73b55eb074",
+          "created_at": "2026-08-28T17:26:52Z",
+          "updated_at": "2026-08-28T17:26:52Z"
         }
       ],
-      "validation_path": null,
-      "validation": null
+      "validation_path": "nft-universe/contract-details-run-33192679515/AGGREGATE_VALIDATION.json",
+      "validation": {
+        "status": "FAIL",
+        "artifact_count": 0,
+        "universe_contracts": -1,
+        "covered_contracts": 0,
+        "complete_contracts": 0,
+        "all_transfer_rows": 0,
+        "mint_transfer_rows": 0,
+        "burn_transfer_rows": 0,
+        "failure_count": 33,
+        "failures": [
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 0
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 1
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 2
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 3
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 4
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 5
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 6
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 7
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 8
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 9
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 10
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 11
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 12
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 13
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 14
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 15
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 16
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 17
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 18
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 19
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 20
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 21
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 22
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 23
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 24
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 25
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 26
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 27
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 28
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 29
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 30
+          },
+          {
+            "code": "MISSING_SHARD_ARTIFACT",
+            "shard": 31
+          },
+          {
+            "code": "UNIVERSE_COUNT_MISMATCH",
+            "values": []
+          }
+        ],
+        "production_approved_wallets": 0,
+        "decision_use": "PROJECT_AND_TOKEN_LIFECYCLE_INPUT"
+      }
     },
     {
       "id": "canonical",
@@ -392,13 +538,22 @@
       "branch_error": null,
       "workflow_runs": [
         {
-          "id": 33193300886,
+          "id": 33194939734,
+          "name": "RHC mint transaction enrichment from mint-only universe",
+          "status": "in_progress",
+          "conclusion": null,
+          "head_sha": "0b1c05bdb73c3198a0f9659f30043a41c735e227",
+          "created_at": "2026-08-28T17:29:47Z",
+          "updated_at": "2026-08-28T17:29:51Z"
+        },
+        {
+          "id": 33194939688,
           "name": "RHC canonical mint transaction enrichment",
           "status": "in_progress",
           "conclusion": null,
-          "head_sha": "a80eacc9740a7d8b3189b1d1dc166dcd0feb24e3",
-          "created_at": "2026-08-28T17:08:36Z",
-          "updated_at": "2026-08-28T17:26:23Z"
+          "head_sha": "0b1c05bdb73c3198a0f9659f30043a41c735e227",
+          "created_at": "2026-08-28T17:29:47Z",
+          "updated_at": "2026-08-28T17:30:36Z"
         }
       ],
       "validation_path": null,
