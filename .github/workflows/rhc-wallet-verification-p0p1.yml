@@ -17,43 +17,65 @@ concurrency:
 
 jobs:
   verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [p0, p1a, p1b, p1c, p1d]
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Materialize audited collector and fixed P0-P1 input
+      - name: Materialize audited collector and fixed shard input
         shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           mkdir -p runtime
           base64 -d wallet-verification/collector.py.gz.b64 | gzip -d > runtime/collector.py
-          base64 -d wallet-verification/wallets.json.gz.b64 | gzip -d > runtime/wallets.json
+          base64 -d wallet-verification/wallets.json.gz.b64 | gzip -d > runtime/wallets-all.json
           python -m py_compile runtime/collector.py
           python - <<'PY'
-          import json
-          rows=json.load(open('runtime/wallets.json'))
-          assert len(rows)==20
-          assert sum(x['priority']=='P0' for x in rows)==1
-          assert sum(x['priority']=='P1' for x in rows)==19
-          print({'wallets':len(rows),'p0':1,'p1':19})
+          import json, os
+          rows=json.load(open('runtime/wallets-all.json'))
+          p0=[row for row in rows if row['priority']=='P0']
+          p1=[row for row in rows if row['priority']=='P1']
+          shard=os.environ['SHARD']
+          slices={
+              'p0': (0,0),
+              'p1a': (0,5),
+              'p1b': (5,10),
+              'p1c': (10,15),
+              'p1d': (15,19),
+          }
+          start,end=slices[shard]
+          selected=p0 if shard=='p0' else p0+p1[start:end]
+          json.dump(selected,open('runtime/wallets.json','w'),indent=2)
+          assert len(p0)==1 and len(p1)==19
+          assert sum(row['priority']=='P0' for row in selected)==1
+          print({'shard':shard,'wallets':len(selected),'p0':1,'p1':len(selected)-1})
           PY
-      - name: Collect and verify P0-P1 canonical evidence
+      - name: Collect and verify canonical evidence
         shell: bash
-        run: python runtime/collector.py --wallets runtime/wallets.json --out out-wallet-verification
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: python runtime/collector.py --wallets runtime/wallets.json --out "out-${SHARD}"
       - name: Preserve collector and fixed inputs in artifact
         if: always()
         shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
-          mkdir -p out-wallet-verification/runtime
-          cp runtime/collector.py runtime/wallets.json out-wallet-verification/runtime/
+          mkdir -p "out-${SHARD}/runtime"
+          cp runtime/collector.py runtime/wallets.json runtime/wallets-all.json "out-${SHARD}/runtime/"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rhc-wallet-verification-p0p1
-          path: out-wallet-verification/
+          name: rhc-wallet-verification-${{ matrix.shard }}
+          path: out-${{ matrix.shard }}/
           retention-days: 3
           if-no-files-found: error
           compression-level: 9
