@@ -1,0 +1,113 @@
+name: RHC canonical data package publisher
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-canonical-packager.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: rhc-canonical-data-packager-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Wait for canonical collection and download its artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, pathlib, time, urllib.parse, urllib.request, zipfile, io
+          token=os.environ['GH_TOKEN']; repo=os.environ['REPO']; branch=os.environ['HEAD_BRANCH']
+          headers={'accept':'application/vnd.github+json','authorization':f'Bearer {token}','user-agent':'RHC-Package-Publisher/1.0','x-github-api-version':'2022-11-28'}
+          def get_json(url):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req,timeout=90) as response: return json.loads(response.read())
+          run=None
+          for _ in range(300):
+              url=(f'https://api.github.com/repos/{repo}/actions/workflows/rhc-canonical-data-completion.yml/runs?'
+                   f'event=pull_request&branch={urllib.parse.quote(branch)}&per_page=30')
+              values=get_json(url).get('workflow_runs',[])
+              if values:
+                  run=sorted(values,key=lambda value:value['id'],reverse=True)[0]
+                  print({'run_id':run['id'],'status':run['status'],'conclusion':run.get('conclusion')},flush=True)
+                  if run['status']=='completed': break
+              time.sleep(30)
+          if not run or run.get('status')!='completed': raise SystemExit('canonical run did not complete')
+          required={'rhc-global-seadrop','rhc-global-seaport'} | {f'rhc-canonical-wallet-{i}' for i in range(16)}
+          artifacts=get_json(f'https://api.github.com/repos/{repo}/actions/runs/{run["id"]}/artifacts?per_page=100').get('artifacts',[])
+          pathlib.Path('downloaded').mkdir(exist_ok=True)
+          for artifact in artifacts:
+              if artifact['name'] not in required: continue
+              req=urllib.request.Request(artifact['archive_download_url'],headers=headers)
+              with urllib.request.urlopen(req,timeout=300) as response: payload=response.read()
+              dest=pathlib.Path('downloaded')/artifact['name']; dest.mkdir(parents=True,exist_ok=True)
+              with zipfile.ZipFile(io.BytesIO(payload)) as archive: archive.extractall(dest)
+          pathlib.Path('out-consolidated').mkdir(exist_ok=True)
+          (pathlib.Path('out-consolidated')/'SOURCE_RUN.json').write_text(json.dumps({
+              'canonical_run_id':run['id'],
+              'canonical_run_head_sha':run.get('head_sha'),
+              'canonical_run_conclusion':run.get('conclusion'),
+              'artifact_names':sorted(a['name'] for a in artifacts),
+              'missing_required_artifacts':sorted(required-{a['name'] for a in artifacts}),
+              'packager_run_id':int(os.environ.get('GITHUB_RUN_ID','0')),
+          },indent=2,sort_keys=True))
+          PY
+      - name: Consolidate
+        if: always()
+        run: python rhc-data-completion/consolidate.py
+      - name: Build versioned package and publish to temporary branch
+        if: always()
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          rm -rf .results/rhc-canonical-package
+          mkdir -p .results/rhc-canonical-package
+          cp -a out-consolidated/. .results/rhc-canonical-package/
+          python - <<'PY'
+          import hashlib, json, pathlib, zipfile, os
+          source=pathlib.Path('.results/rhc-canonical-package')
+          archive=pathlib.Path('.results/rhc-canonical-data-consolidated.zip')
+          if archive.exists(): archive.unlink()
+          with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for path in sorted(source.rglob('*')):
+                  if path.is_file(): z.write(path,path.relative_to(source.parent))
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          index={
+              'package':'rhc-canonical-data-consolidated.zip',
+              'bytes':archive.stat().st_size,
+              'sha256':digest,
+              'packager_run_id':int(os.environ['GITHUB_RUN_ID']),
+              'files':[str(path.relative_to(source)) for path in sorted(source.rglob('*')) if path.is_file()],
+          }
+          pathlib.Path('.results/rhc-canonical-package-index.json').write_text(json.dumps(index,indent=2,sort_keys=True))
+          pathlib.Path('.results/rhc-canonical-data-consolidated.zip.sha256').write_text(digest+'  '+archive.name+'\n')
+          if archive.stat().st_size > 90_000_000:
+              raise SystemExit(f'package exceeds GitHub 100 MB file limit: {archive.stat().st_size}')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .results/
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'chore: publish canonical data package [skip ci]'
+          git push origin "HEAD:${HEAD_BRANCH}"
