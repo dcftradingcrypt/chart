@@ -1,0 +1,138 @@
+name: Monitor required RHC NFT data collection gates
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-data-collection-monitor-fixed.yml'
+      - 'data-collection-monitor/TRIGGER_REQUIRED_GATES.txt'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: rhc-required-data-monitor-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      MONITOR_BRANCH: chatgpt/rhc-data-collection-monitor-20260829
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-data-collection-monitor-20260829
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Wait only for required immutable evidence gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data-collection-monitor/required-gates
+          cat > data-collection-monitor/required-gates/monitor.py <<'PY'
+          from __future__ import annotations
+          import datetime, fnmatch, json, pathlib, subprocess, time
+
+          SPECS = [
+              {'id':'p1c_wallets','branch':'chatgpt/rhc-wallet-verification-p1c-20260829','glob':'wallet-verification-p1c/evidence-run-*/AGGREGATE_VALIDATION.json','expected':{'artifact_count':5,'unique_target_wallets':5}},
+              {'id':'p2_wallets','branch':'chatgpt/rhc-wallet-verification-p2-20260829','glob':'wallet-verification-p2/evidence-run-*/AGGREGATE_VALIDATION.json','expected':{'artifact_count':16,'p2_wallet_count_sum':212}},
+              {'id':'nft_contract_universe','branch':'chatgpt/rhc-nft-contract-universe-20260829','glob':'nft-universe/evidence-run-*/VALIDATION.json','positive':['unique_nft_contracts']},
+              {'id':'nft_mint_history','branch':'chatgpt/rhc-nft-mint-history-20260829','glob':'nft-mint-history/evidence-run-*/AGGREGATE_VALIDATION.json','positive':['mint_transfer_rows','unique_contracts','unique_transactions']},
+              {'id':'canonical_event_history','branch':'chatgpt/rhc-canonical-event-history-20260829','glob':'canonical-history/evidence-run-*/AGGREGATE_VALIDATION.json','list_len':{'targets':2}},
+              {'id':'mint_transaction_enrichment','branch':'chatgpt/rhc-mint-tx-enrichment-20260829','glob':'mint-enrichment/evidence-run-*/AGGREGATE_VALIDATION.json','equality':[('enriched_transactions','source_unique_mint_transactions')]},
+              {'id':'seaport_transaction_enrichment','branch':'chatgpt/rhc-seaport-tx-enrichment-20260829','glob':'sale-enrichment/evidence-run-*/AGGREGATE_VALIDATION.json','equality':[('enriched_transactions','source_unique_transactions')]},
+          ]
+
+          def command(*args):
+              return subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+
+          def inspect(spec):
+              ref='refs/remotes/required/'+spec['branch'].replace('/','__')
+              cp=command('git','fetch','--force','--depth=1','origin',f"{spec['branch']}:{ref}")
+              result={'id':spec['id'],'branch':spec['branch'],'status':'MISSING','validation_path':None,'validation':None,'failures':[]}
+              if cp.returncode:
+                  result['failures'].append({'code':'BRANCH_FETCH_FAILED','error':cp.stderr[-1500:]})
+                  return result
+              tree=command('git','ls-tree','-r','--name-only',ref)
+              if tree.returncode:
+                  result['failures'].append({'code':'TREE_READ_FAILED','error':tree.stderr[-1500:]})
+                  return result
+              matches=sorted(path for path in tree.stdout.splitlines() if fnmatch.fnmatch(path,spec['glob']))
+              if not matches:
+                  return result
+              path=matches[-1]; result['validation_path']=path
+              shown=command('git','show',f'{ref}:{path}')
+              if shown.returncode:
+                  result['status']='FAIL'; result['failures'].append({'code':'VALIDATION_READ_FAILED','error':shown.stderr[-1500:]}); return result
+              try:data=json.loads(shown.stdout)
+              except Exception as exc:
+                  result['status']='FAIL';result['failures'].append({'code':'VALIDATION_JSON_INVALID','error':repr(exc)});return result
+              result['validation']=data
+              failures=[]
+              if data.get('status')!='PASS':failures.append({'code':'STATUS_NOT_PASS','actual':data.get('status')})
+              for key,expected in spec.get('expected',{}).items():
+                  if int(data.get(key,-1))!=int(expected):failures.append({'code':'EXPECTED_VALUE_MISMATCH','key':key,'expected':expected,'actual':data.get(key)})
+              for key in spec.get('positive',[]):
+                  try:value=int(data.get(key,0))
+                  except Exception:value=0
+                  if value<=0:failures.append({'code':'POSITIVE_VALUE_REQUIRED','key':key,'actual':data.get(key)})
+              for key,length in spec.get('list_len',{}).items():
+                  value=data.get(key)
+                  if not isinstance(value,list) or len(value)!=length:failures.append({'code':'LIST_LENGTH_MISMATCH','key':key,'expected':length,'actual':len(value) if isinstance(value,list) else None})
+              for left,right in spec.get('equality',[]):
+                  if data.get(left)!=data.get(right):failures.append({'code':'EQUALITY_FAILED','left':left,'left_value':data.get(left),'right':right,'right_value':data.get(right)})
+              result['failures']=failures;result['status']='PASS' if not failures else 'FAIL'
+              return result
+
+          root=pathlib.Path('data-collection-monitor/required-gates')
+          final=None
+          for attempt in range(1,181):
+              checks=[inspect(spec) for spec in SPECS]
+              passed=sum(row['status']=='PASS' for row in checks)
+              report={'status':'PASS' if passed==len(SPECS) else 'IN_PROGRESS','attempt':attempt,'checked_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'required_gate_count':len(SPECS),'passed_gate_count':passed,'checks':checks,'deepseek_handoff_allowed':False,'production_approved_wallets':0,'decision_use':'REQUIRED_DATA_COLLECTION_GATES'}
+              (root/'LATEST_STATUS.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+              print(json.dumps({'attempt':attempt,'passed':passed,'required':len(SPECS),'states':{row['id']:row['status'] for row in checks}},sort_keys=True),flush=True)
+              final=report
+              if passed==len(SPECS):break
+              time.sleep(110)
+          assert final is not None
+          final['status']='PASS' if final['passed_gate_count']==final['required_gate_count'] else 'TIMEOUT_INCOMPLETE'
+          (root/'FINAL_STATUS.json').write_text(json.dumps(final,ensure_ascii=False,indent=2),encoding='utf-8')
+          PY
+          python data-collection-monitor/required-gates/monitor.py
+      - name: Persist required-gate report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          dest="data-collection-monitor/required-gates/reports/${timestamp}"
+          mkdir -p "$dest"
+          cp data-collection-monitor/required-gates/LATEST_STATUS.json "$dest/" 2>/dev/null || true
+          cp data-collection-monitor/required-gates/FINAL_STATUS.json "$dest/" 2>/dev/null || true
+          git config user.name 'rhc-data-monitor'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$dest"
+          git commit -m "data: persist required RHC evidence gates ${timestamp}"
+          for attempt in $(seq 1 10);do
+            git fetch origin "$MONITOR_BRANCH"
+            git rebase "origin/$MONITOR_BRANCH"
+            if git push origin "HEAD:$MONITOR_BRANCH";then break;fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done
+      - name: Fail closed until all required data is present
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('data-collection-monitor/required-gates/FINAL_STATUS.json'))
+          assert d['status']=='PASS',d
+          assert d['passed_gate_count']==d['required_gate_count'],d
+          assert d['deepseek_handoff_allowed'] is False,d
+          PY
