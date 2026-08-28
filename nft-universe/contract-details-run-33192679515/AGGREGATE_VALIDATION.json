@@ -1,0 +1,147 @@
+{
+  "status": "FAIL",
+  "artifact_count": 0,
+  "universe_contracts": -1,
+  "covered_contracts": 0,
+  "complete_contracts": 0,
+  "all_transfer_rows": 0,
+  "mint_transfer_rows": 0,
+  "burn_transfer_rows": 0,
+  "failure_count": 33,
+  "failures": [
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 0
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 1
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 2
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 3
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 4
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 5
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 6
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 7
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 8
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 9
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 10
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 11
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 12
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 13
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 14
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 15
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 16
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 17
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 18
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 19
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 20
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 21
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 22
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 23
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 24
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 25
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 26
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 27
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 28
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 29
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 30
+    },
+    {
+      "code": "MISSING_SHARD_ARTIFACT",
+      "shard": 31
+    },
+    {
+      "code": "UNIVERSE_COUNT_MISMATCH",
+      "values": []
+    }
+  ],
+  "production_approved_wallets": 0,
+  "decision_use": "PROJECT_AND_TOKEN_LIFECYCLE_INPUT"
+}
