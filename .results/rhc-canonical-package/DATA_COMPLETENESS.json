@@ -1,0 +1,43 @@
+{
+  "canonical_nft_transfer_rows": 0,
+  "collector_error_rows": 0,
+  "data_collection_complete_for_wallet_verification": false,
+  "deepseek_handoff_allowed": false,
+  "expected_artifacts": 18,
+  "fixed_heads": {
+    "seadrop": null,
+    "seaport": null
+  },
+  "global_event_rows": 0,
+  "global_event_validations": {},
+  "global_history_complete": false,
+  "known_transaction_evidence_rows": 0,
+  "missing_artifacts": [
+    "rhc-global-seadrop",
+    "rhc-global-seaport",
+    "rhc-canonical-wallet-0",
+    "rhc-canonical-wallet-1",
+    "rhc-canonical-wallet-2",
+    "rhc-canonical-wallet-3",
+    "rhc-canonical-wallet-4",
+    "rhc-canonical-wallet-5",
+    "rhc-canonical-wallet-6",
+    "rhc-canonical-wallet-7",
+    "rhc-canonical-wallet-8",
+    "rhc-canonical-wallet-9",
+    "rhc-canonical-wallet-10",
+    "rhc-canonical-wallet-11",
+    "rhc-canonical-wallet-12",
+    "rhc-canonical-wallet-13",
+    "rhc-canonical-wallet-14",
+    "rhc-canonical-wallet-15"
+  ],
+  "priority_counts": {},
+  "production_approved_wallets": 0,
+  "remediation_rows": 0,
+  "status": "PARTIAL_REMEDIATION_REQUIRED",
+  "wallet_set_ok": false,
+  "wallet_status_counts": {},
+  "wallets_expected": 232,
+  "wallets_observed": 0
+}

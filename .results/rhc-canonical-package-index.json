@@ -1,0 +1,18 @@
+{
+  "bytes": 2485,
+  "files": [
+    "DATA_COMPLETENESS.json",
+    "MANIFEST.json",
+    "REMEDIATION_QUEUE.csv",
+    "canonical_nft_transfers.csv",
+    "collector_errors.csv",
+    "global_events.csv",
+    "known_transaction_evidence.csv",
+    "shard_validations.json",
+    "wallet_coverage.csv",
+    "wallet_summary.csv"
+  ],
+  "package": "rhc-canonical-data-consolidated.zip",
+  "packager_run_id": 33221829681,
+  "sha256": "f7c9c74bb0e84ac103298b2f5055a75a487d8a68e14e9c463443cf74db39780c"
+}
