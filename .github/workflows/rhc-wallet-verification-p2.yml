@@ -1,0 +1,200 @@
+name: RHC wallet verification P2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-wallet-verification-p2.yml'
+      - 'wallet-verification/p2_addresses.txt'
+      - 'wallet-verification/collector.py.gz.b64'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-wallet-verification-p2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Materialize collector and deterministic shard input
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          base64 -d wallet-verification/collector.py.gz.b64 | gzip -d > runtime/collector.py
+          python -m py_compile runtime/collector.py
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+
+          shard = int(os.environ['SHARD'])
+          shard_count = 16
+          addresses = [
+              line.strip().lower()
+              for line in Path('wallet-verification/p2_addresses.txt').read_text().splitlines()
+              if line.strip()
+          ]
+          assert len(addresses) == 212, len(addresses)
+          assert len(addresses) == len(set(addresses))
+          assert all(re.fullmatch(r'0x[a-f0-9]{40}', address) for address in addresses)
+
+          p0 = {
+              'wallet': '0x76d387388bea6b60ca6d1e97f446f7e26d39d313',
+              'priority': 'P0',
+              'priority_points': 11,
+              'verification_reasons': [
+                  'ONCHAIN_PAID_PRIMARY_ACTIVITY',
+                  'STRICT_V04_PAID_PROJECT_ACTIVITY',
+                  'RECENT_SECONDARY_MARKET_ACTIVITY',
+              ],
+              'known_mints': [{
+                  'tx_hash': '0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23',
+                  'block_number': 46802320,
+                  'log_index': 45,
+                  'contract': '0x797a0889718c30060fc797659328590e86041fbd',
+                  'collection_name': 'Robin Club',
+                  'minter': '0x76d387388bea6b60ca6d1e97f446f7e26d39d313',
+                  'payer': '0x76d387388bea6b60ca6d1e97f446f7e26d39d313',
+                  'quantity': 1,
+                  'unit_mint_price_wei': 170000000000000,
+                  'drop_stage_index': 0,
+                  'timestamp_utc': '2026-08-26T18:31:03Z',
+              }],
+              'known_sales': [{
+                  'tx_hash': '0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b',
+                  'contract': '0x66007297055229066d86294a18edb6e1a2db32d7',
+                  'collection_name': 'MiNi BRoKER #1692',
+                  'token_id': '1692',
+                  'buyer': '0xbbc7974b1d4b353b2557382ac543dfdab7846026',
+                  'seller': '0x76d387388bea6b60ca6d1e97f446f7e26d39d313',
+                  'price_native': '0.0007',
+                  'timestamp_utc': '2026-08-26T18:57:25Z',
+                  'source_sale_status': 'SOURCE_REPORTED_NOT_RECEIPT_VERIFIED',
+              }],
+          }
+          selected = [address for index, address in enumerate(addresses) if index % shard_count == shard]
+          rows = [p0] + [
+              {
+                  'wallet': address,
+                  'priority': 'P2',
+                  'priority_points': 5,
+                  'verification_reasons': ['FIXED_P2_VERIFICATION_QUEUE'],
+                  'known_mints': [],
+                  'known_sales': [],
+              }
+              for address in selected
+          ]
+          Path('runtime/wallets.json').write_text(json.dumps(rows, indent=2), encoding='utf-8')
+          Path('runtime/shard_metadata.json').write_text(json.dumps({
+              'shard': shard,
+              'shard_count': shard_count,
+              'p2_wallet_count': len(selected),
+              'p2_wallets': selected,
+          }, indent=2), encoding='utf-8')
+          print({'shard': shard, 'p2_wallets': len(selected), 'rows_with_p0': len(rows)})
+          PY
+      - name: Collect complete P2 address evidence
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: python runtime/collector.py --wallets runtime/wallets.json --out out-wallet-verification
+      - name: Enforce P2 completeness gate
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python - <<'PY'
+          import csv, json, os
+          from pathlib import Path
+
+          out = Path('out-wallet-verification')
+          metadata = json.loads(Path('runtime/shard_metadata.json').read_text())
+          validation = json.loads((out / 'VALIDATION.json').read_text())
+          with (out / 'wallet_summary.csv').open(newline='', encoding='utf-8-sig') as handle:
+              summaries = list(csv.DictReader(handle))
+          with (out / 'errors.csv').open(newline='', encoding='utf-8-sig') as handle:
+              errors = list(csv.DictReader(handle))
+
+          external_only = {
+              '0x2b5b35ac5a2d5c1224337ba86bf3816abee69da3',
+              '0x4bc98b9112229ee07d85a6827d3bde713c8e7e24',
+              '0xfaeb5d192a7336a6e635905d8d33a46adbba8513',
+              '0xfe80a4f2d6456327663c6b76e167e598e1142364',
+          }
+          failures = []
+          expected_rows = metadata['p2_wallet_count'] + 1
+          if validation.get('status') != 'PASS':
+              failures.append({'code': 'UPSTREAM_VALIDATION_NOT_PASS', 'value': validation.get('status')})
+          if len(summaries) != expected_rows:
+              failures.append({'code': 'SUMMARY_COUNT_MISMATCH', 'expected': expected_rows, 'actual': len(summaries)})
+          if errors:
+              failures.append({'code': 'COLLECTOR_ERRORS_PRESENT', 'count': len(errors), 'sample': errors[:10]})
+
+          seen = set()
+          for row in summaries:
+              wallet = row.get('wallet', '').lower()
+              if wallet in seen:
+                  failures.append({'code': 'DUPLICATE_WALLET_SUMMARY', 'wallet': wallet})
+              seen.add(wallet)
+              if row.get('priority') != 'P2':
+                  continue
+              nft_rows = int(float(row.get('nft_history_rows') or 0))
+              history_meta = json.loads(row.get('history_meta') or '{}')
+              for kind in ('transactions', 'nft', 'erc1155'):
+                  if history_meta.get(kind, {}).get('truncated_possible'):
+                      failures.append({'code': 'TRUNCATED_HISTORY', 'wallet': wallet, 'kind': kind})
+              if wallet not in external_only and nft_rows <= 0:
+                  failures.append({'code': 'EXPECTED_ONCHAIN_NFT_HISTORY_MISSING', 'wallet': wallet})
+
+          expected_wallets = set(metadata['p2_wallets']) | {'0x76d387388bea6b60ca6d1e97f446f7e26d39d313'}
+          if seen != expected_wallets:
+              failures.append({
+                  'code': 'WALLET_SET_MISMATCH',
+                  'missing': sorted(expected_wallets - seen),
+                  'unexpected': sorted(seen - expected_wallets),
+              })
+          report = {
+              'status': 'PASS' if not failures else 'FAIL',
+              'shard': metadata['shard'],
+              'p2_wallet_count': metadata['p2_wallet_count'],
+              'summary_rows': len(summaries),
+              'collector_error_rows': len(errors),
+              'failures': failures,
+              'production_approved_wallets': 0,
+          }
+          (out / 'P2_COMPLETENESS_GATE.json').write_text(json.dumps(report, indent=2, sort_keys=True))
+          print(json.dumps(report, sort_keys=True))
+          if failures:
+              raise SystemExit(1)
+          PY
+      - name: Preserve fixed inputs and collector
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out-wallet-verification/runtime
+          cp runtime/collector.py runtime/wallets.json runtime/shard_metadata.json out-wallet-verification/runtime/
+          cp wallet-verification/p2_addresses.txt out-wallet-verification/runtime/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-wallet-verification-p2-${{ matrix.shard }}
+          path: out-wallet-verification/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
