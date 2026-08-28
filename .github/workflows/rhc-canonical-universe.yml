@@ -1,0 +1,65 @@
+name: RHC canonical SeaDrop and Seaport universe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-canonical-universe.yml'
+      - 'rhc-canonical-universe/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-canonical-universe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: [seadrop, seaport]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Calculate immutable block interval
+        id: range
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python - <<'PY'
+          import os
+          fixed_head = 48_264_433
+          shard_count = 16
+          shard = int(os.environ['SHARD'])
+          start = (fixed_head + 1) * shard // shard_count
+          end = (fixed_head + 1) * (shard + 1) // shard_count - 1
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as handle:
+              handle.write(f'start={start}\nend={end}\n')
+          print({'shard': shard, 'start': start, 'end': end, 'fixed_head': fixed_head})
+          PY
+      - name: Collect complete canonical event range
+        shell: bash
+        run: |
+          python rhc-canonical-universe/collect_range.py \
+            --target '${{ matrix.target }}' \
+            --start '${{ steps.range.outputs.start }}' \
+            --end '${{ steps.range.outputs.end }}' \
+            --out 'out-${{ matrix.target }}-${{ matrix.shard }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-canonical-${{ matrix.target }}-${{ matrix.shard }}
+          path: out-${{ matrix.target }}-${{ matrix.shard }}/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
