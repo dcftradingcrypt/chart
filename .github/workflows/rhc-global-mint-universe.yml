@@ -1,0 +1,67 @@
+name: RHC complete global NFT mint universe
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-global-mint-universe.yml'
+      - 'rhc-global-mint-universe/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-global-mint-universe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        target: [erc721, erc1155_single, erc1155_batch]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic Keccak implementation
+        run: python -m pip install --disable-pip-version-check --no-input pycryptodome==3.23.0
+      - name: Calculate immutable block interval
+        id: range
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python - <<'PY'
+          import os
+          fixed_head = 48_264_433
+          shard_count = 16
+          shard = int(os.environ['SHARD'])
+          start = (fixed_head + 1) * shard // shard_count
+          end = (fixed_head + 1) * (shard + 1) // shard_count - 1
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as handle:
+              handle.write(f'start={start}\nend={end}\n')
+          print({'target': '${{ matrix.target }}', 'shard': shard, 'start': start, 'end': end})
+          PY
+      - name: Collect complete chain-wide NFT mint range
+        shell: bash
+        run: |
+          python rhc-global-mint-universe/collect_global_mints.py \
+            --target '${{ matrix.target }}' \
+            --start '${{ steps.range.outputs.start }}' \
+            --end '${{ steps.range.outputs.end }}' \
+            --out 'out-${{ matrix.target }}-${{ matrix.shard }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-global-mint-${{ matrix.target }}-${{ matrix.shard }}
+          path: out-${{ matrix.target }}-${{ matrix.shard }}/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
