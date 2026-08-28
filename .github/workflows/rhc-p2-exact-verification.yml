@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p runtime
-          cat p1-exact/chunks/collector.part00 p1-exact/chunks/collector.part01 p1-exact/chunks/collector.part02 | base64 -d | gzip -d > runtime/collector.py
+          base64 -d p2-exact/collector.py.gz.b64 | gzip -d > runtime/collector.py
           cat p2-exact/chunks/wallets.part00 p2-exact/chunks/wallets.part01 p2-exact/chunks/wallets.part02 p2-exact/chunks/wallets.part03 p2-exact/chunks/wallets.part04 p2-exact/chunks/wallets.part05 p2-exact/chunks/wallets.part06 p2-exact/chunks/wallets.part07 | base64 -d | gzip -d > runtime/wallets-all.json
           echo '6c3be0d2336f3fe6b5ce4a67cf313c43dbaa5ef108ddb0083d620d940480f5d7  runtime/collector.py' | sha256sum -c -
           echo 'd4c519d293de7bbe45fb05ad8329f3b06cbcc9f3c174605eddfa4ce3f47ac52b  runtime/wallets-all.json' | sha256sum -c -
