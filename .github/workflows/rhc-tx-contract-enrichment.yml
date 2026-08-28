@@ -1,0 +1,47 @@
+name: RHC enrich all NFT transactions blocks and contracts
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-tx-contract-enrichment.yml'
+      - 'rhc-tx-contract-enrichment/**'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: rhc-tx-contract-enrichment-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enrich:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch and enrich deterministic shard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python rhc-tx-contract-enrichment/collect_shard.py \
+            --shard '${{ matrix.shard }}' \
+            --out 'out-enrichment-${{ matrix.shard }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-tx-contract-enrichment-${{ matrix.shard }}
+          path: out-enrichment-${{ matrix.shard }}/
+          retention-days: 10
+          if-no-files-found: error
+          compression-level: 9
