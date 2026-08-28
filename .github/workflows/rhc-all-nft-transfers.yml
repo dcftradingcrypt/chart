@@ -1,0 +1,42 @@
+name: RHC canonical full-chain NFT transfers
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-all-nft-transfers.yml'
+      - 'canonical-completion/all_nft_transfer_collector.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-all-nft-transfers-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        target: [erc721, erc1155_single, erc1155_batch]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check --no-input pycryptodome==3.23.0
+      - name: Collect full-chain canonical NFT transfers
+        run: python canonical-completion/all_nft_transfer_collector.py --target '${{ matrix.target }}' --out 'out-${{ matrix.target }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-all-nft-transfers-${{ matrix.target }}
+          path: out-${{ matrix.target }}/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
