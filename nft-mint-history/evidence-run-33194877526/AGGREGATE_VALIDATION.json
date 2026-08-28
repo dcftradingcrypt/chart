@@ -1,0 +1,112 @@
+{
+  "status": "FAIL",
+  "fixed_head": 48477218,
+  "fixed_head_hash": "0xc25e444114f74db086982cc13ab8f4190d8dad0fa16dc599d437349dc94a0ca5",
+  "standard_validations": [
+    {
+      "status": "FAIL",
+      "standard": "ERC-721",
+      "fixed_head": 48477218,
+      "fixed_head_hash": "0xc25e444114f74db086982cc13ab8f4190d8dad0fa16dc599d437349dc94a0ca5",
+      "mint_transfer_rows": 0,
+      "unique_contracts": 0,
+      "unique_transactions": 0,
+      "complete_sources": 0,
+      "source_errors": 2,
+      "failures": [
+        {
+          "code": "NO_COMPLETE_SOURCE"
+        },
+        {
+          "code": "NO_EXHAUSTED_SOURCE"
+        }
+      ],
+      "production_approved_wallets": 0,
+      "decision_use": "PRIMARY_MINT_EVENT_UNIVERSE"
+    },
+    {
+      "status": "FAIL",
+      "standard": "ERC-1155",
+      "fixed_head": 48477218,
+      "fixed_head_hash": "0xc25e444114f74db086982cc13ab8f4190d8dad0fa16dc599d437349dc94a0ca5",
+      "mint_transfer_rows": 0,
+      "unique_contracts": 0,
+      "unique_transactions": 0,
+      "complete_sources": 0,
+      "source_errors": 2,
+      "failures": [
+        {
+          "code": "NO_COMPLETE_SOURCE"
+        },
+        {
+          "code": "NO_EXHAUSTED_SOURCE"
+        }
+      ],
+      "production_approved_wallets": 0,
+      "decision_use": "PRIMARY_MINT_EVENT_UNIVERSE"
+    }
+  ],
+  "mint_transfer_rows": 0,
+  "unique_contracts": 0,
+  "unique_transactions": 0,
+  "failure_count": 2,
+  "failures": [
+    {
+      "code": "STANDARD_NOT_PASS",
+      "standard": "ERC-721",
+      "validation": {
+        "status": "FAIL",
+        "standard": "ERC-721",
+        "fixed_head": 48477218,
+        "fixed_head_hash": "0xc25e444114f74db086982cc13ab8f4190d8dad0fa16dc599d437349dc94a0ca5",
+        "mint_transfer_rows": 0,
+        "unique_contracts": 0,
+        "unique_transactions": 0,
+        "complete_sources": 0,
+        "source_errors": 2,
+        "failures": [
+          {
+            "code": "NO_COMPLETE_SOURCE"
+          },
+          {
+            "code": "NO_EXHAUSTED_SOURCE"
+          }
+        ],
+        "production_approved_wallets": 0,
+        "decision_use": "PRIMARY_MINT_EVENT_UNIVERSE"
+      }
+    },
+    {
+      "code": "STANDARD_NOT_PASS",
+      "standard": "ERC-1155",
+      "validation": {
+        "status": "FAIL",
+        "standard": "ERC-1155",
+        "fixed_head": 48477218,
+        "fixed_head_hash": "0xc25e444114f74db086982cc13ab8f4190d8dad0fa16dc599d437349dc94a0ca5",
+        "mint_transfer_rows": 0,
+        "unique_contracts": 0,
+        "unique_transactions": 0,
+        "complete_sources": 0,
+        "source_errors": 2,
+        "failures": [
+          {
+            "code": "NO_COMPLETE_SOURCE"
+          },
+          {
+            "code": "NO_EXHAUSTED_SOURCE"
+          }
+        ],
+        "production_approved_wallets": 0,
+        "decision_use": "PRIMARY_MINT_EVENT_UNIVERSE"
+      }
+    }
+  ],
+  "file": {
+    "path": "nft_mint_transfers.jsonl.gz",
+    "bytes": 50,
+    "sha256": "1a358fd571a4c743037eba154362360f0e650a12e43f6f600f0c30f276e68f2f"
+  },
+  "production_approved_wallets": 0,
+  "decision_use": "PRIMARY_MINT_EVENT_UNIVERSE"
+}

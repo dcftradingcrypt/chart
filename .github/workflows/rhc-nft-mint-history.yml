@@ -1,0 +1,178 @@
+name: RHC complete NFT mint history
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-nft-mint-history.yml'
+      - 'nft-mint-history/collect.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rhc-nft-mint-history-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  head:
+    runs-on: ubuntu-latest
+    outputs:
+      fixed_head: ${{ steps.capture.outputs.fixed_head }}
+      fixed_head_hash: ${{ steps.capture.outputs.fixed_head_hash }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - id: capture
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          rpc='https://rpc.mainnet.chain.robinhood.com'
+          def call(method,params):
+              body=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode()
+              req=urllib.request.Request(rpc,data=body,headers={'content-type':'application/json','user-agent':'RHC-mint-head/1.0'})
+              with urllib.request.urlopen(req,timeout=60) as response:
+                  data=json.loads(response.read())
+              if data.get('error'): raise SystemExit(data['error'])
+              return data['result']
+          current=int(call('eth_blockNumber',[]),16)
+          fixed=max(0,current-128)
+          block=call('eth_getBlockByNumber',[hex(fixed),False])
+          assert int(block['number'],16)==fixed and block.get('hash')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write(f'fixed_head={fixed}\n')
+              f.write(f"fixed_head_hash={block['hash'].lower()}\n")
+          print({'current':current,'fixed':fixed,'hash':block['hash'].lower()})
+          PY
+
+  collect:
+    needs: head
+    strategy:
+      fail-fast: false
+      matrix:
+        standard: [ERC-721, ERC-1155]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Exhaust zero-address NFT token-transfer pagination
+        run: |
+          python nft-mint-history/collect.py \
+            --standard '${{ matrix.standard }}' \
+            --fixed-head '${{ needs.head.outputs.fixed_head }}' \
+            --fixed-head-hash '${{ needs.head.outputs.fixed_head_hash }}' \
+            --out out-mints
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-nft-mints-${{ matrix.standard }}
+          path: out-mints/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    if: always()
+    needs: [head, collect]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-nft-mint-history-20260829
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-nft-mints-*
+          path: downloaded-mints
+          merge-multiple: false
+      - name: Merge both standards and enforce one fixed head
+        shell: bash
+        env:
+          FIXED_HEAD: ${{ needs.head.outputs.fixed_head }}
+          FIXED_HEAD_HASH: ${{ needs.head.outputs.fixed_head_hash }}
+        run: |
+          python - <<'PY'
+          import gzip, hashlib, json, os, pathlib
+          root=pathlib.Path('downloaded-mints')
+          out=pathlib.Path('aggregate-mints');out.mkdir(exist_ok=True)
+          fixed=int(os.environ['FIXED_HEAD']); fixed_hash=os.environ['FIXED_HEAD_HASH'].lower()
+          failures=[]; events={}; validations=[]
+          for standard in ('ERC-721','ERC-1155'):
+              d=root/f'rhc-nft-mints-{standard}'
+              vp=d/'VALIDATION.json'
+              if not vp.exists(): failures.append({'code':'MISSING_VALIDATION','standard':standard});continue
+              vr=json.loads(vp.read_text());validations.append(vr)
+              if vr.get('status')!='PASS': failures.append({'code':'STANDARD_NOT_PASS','standard':standard,'validation':vr})
+              if int(vr.get('fixed_head',-1))!=fixed or str(vr.get('fixed_head_hash','')).lower()!=fixed_hash:
+                  failures.append({'code':'FIXED_HEAD_MISMATCH','standard':standard})
+              p=d/'mint_transfers.jsonl.gz'
+              if not p.exists(): failures.append({'code':'MISSING_MINT_FILE','standard':standard});continue
+              with gzip.open(p,'rt',encoding='utf-8') as f:
+                  for line in f:
+                      if not line.strip():continue
+                      row=json.loads(line)
+                      key=(row.get('transaction_hash'),row.get('log_index'),row.get('contract_address'),row.get('token_id'),row.get('amount_raw'),row.get('to_address'))
+                      if key in events and events[key]!=row: failures.append({'code':'CONFLICTING_MINT_EVENT','key':key})
+                      events[key]=row
+          ordered=sorted(events.values(),key=lambda r:(int(r.get('block_number') or -1),r.get('transaction_hash') or '',int(r.get('log_index') or -1)))
+          with gzip.open(out/'nft_mint_transfers.jsonl.gz','wt',encoding='utf-8') as f:
+              for row in ordered:f.write(json.dumps(row,sort_keys=True)+'\n')
+          file=out/'nft_mint_transfers.jsonl.gz'
+          report={
+              'status':'PASS' if not failures else 'FAIL',
+              'fixed_head':fixed,
+              'fixed_head_hash':fixed_hash,
+              'standard_validations':validations,
+              'mint_transfer_rows':len(ordered),
+              'unique_contracts':len({r.get('contract_address') for r in ordered}),
+              'unique_transactions':len({r.get('transaction_hash') for r in ordered}),
+              'failure_count':len(failures),
+              'failures':failures,
+              'file':{'path':file.name,'bytes':file.stat().st_size,'sha256':hashlib.sha256(file.read_bytes()).hexdigest()},
+              'production_approved_wallets':0,
+              'decision_use':'PRIMARY_MINT_EVENT_UNIVERSE',
+          }
+          (out/'AGGREGATE_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Commit immutable mint-event universe to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="nft-mint-history/evidence-run-${GITHUB_RUN_ID}"
+          rm -rf "$dest";mkdir -p "$dest"
+          cp aggregate-mints/* "$dest/"
+          git config user.name 'rhc-data-collector'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$dest"
+          git commit -m "data: persist complete NFT mint history run ${GITHUB_RUN_ID}"
+          for attempt in $(seq 1 10); do
+            git fetch origin chatgpt/rhc-nft-mint-history-20260829
+            git rebase origin/chatgpt/rhc-nft-mint-history-20260829
+            if git push origin HEAD:chatgpt/rhc-nft-mint-history-20260829;then break;fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done
+      - name: Enforce final aggregate after persistence
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('aggregate-mints/AGGREGATE_VALIDATION.json'))
+          assert d['status']=='PASS',d
+          assert len(d['standard_validations'])==2,d
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-nft-mint-history-aggregate
+          path: aggregate-mints/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
