@@ -1,0 +1,211 @@
+name: RHC canonical SeaDrop and Seaport history
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-canonical-event-history.yml'
+      - 'canonical-history/collect_logs.py'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: rhc-canonical-history-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  head:
+    runs-on: ubuntu-latest
+    outputs:
+      fixed_head: ${{ steps.capture.outputs.fixed_head }}
+      fixed_head_hash: ${{ steps.capture.outputs.fixed_head_hash }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - id: capture
+        name: Capture finalized fixed head
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, urllib.request, os
+          rpc='https://rpc.mainnet.chain.robinhood.com'
+          def call(method,params):
+              body=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode()
+              req=urllib.request.Request(rpc,data=body,headers={'content-type':'application/json','user-agent':'RHC-canonical-head/1.0'})
+              with urllib.request.urlopen(req,timeout=60) as r: d=json.loads(r.read())
+              if d.get('error'): raise SystemExit(d['error'])
+              return d['result']
+          current=int(call('eth_blockNumber',[]),16)
+          fixed=max(0,current-128)
+          block=call('eth_getBlockByNumber',[hex(fixed),False])
+          if not block or int(block['number'],16)!=fixed or not block.get('hash'):
+              raise SystemExit('fixed block lookup failed')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write(f'fixed_head={fixed}\n')
+              f.write(f"fixed_head_hash={block['hash'].lower()}\n")
+          print({'current_head':current,'fixed_head':fixed,'fixed_head_hash':block['hash'].lower()})
+          PY
+
+  collect:
+    needs: head
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        target: [seadrop, seaport]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect one complete block-range shard
+        shell: bash
+        run: |
+          python canonical-history/collect_logs.py \
+            --target '${{ matrix.target }}' \
+            --shard '${{ matrix.shard }}' \
+            --fixed-head '${{ needs.head.outputs.fixed_head }}' \
+            --fixed-head-hash '${{ needs.head.outputs.fixed_head_hash }}' \
+            --shard-size 3000000 \
+            --out 'out-history'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-history-${{ matrix.target }}-${{ matrix.shard }}
+          path: out-history/
+          retention-days: 4
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    if: always()
+    needs: [head, collect]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-canonical-event-history-20260829
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-history-*
+          path: downloaded-history
+          merge-multiple: false
+      - name: Aggregate, deduplicate, and prove full coverage
+        shell: bash
+        env:
+          FIXED_HEAD: ${{ needs.head.outputs.fixed_head }}
+          FIXED_HEAD_HASH: ${{ needs.head.outputs.fixed_head_hash }}
+        run: |
+          python - <<'PY'
+          import csv,gzip,hashlib,json,os,pathlib
+          root=pathlib.Path('downloaded-history')
+          out=pathlib.Path('aggregate-history'); out.mkdir(exist_ok=True)
+          fixed_head=int(os.environ['FIXED_HEAD']); fixed_hash=os.environ['FIXED_HEAD_HASH'].lower()
+          failures=[]; manifest=[]; all_coverage=[]
+          for target in ('seadrop','seaport'):
+              dirs=[]
+              for shard in range(20):
+                  d=root/f'rhc-history-{target}-{shard}'
+                  if not d.exists():
+                      failures.append({'code':'MISSING_SHARD_ARTIFACT','target':target,'shard':shard})
+                  else: dirs.append((shard,d))
+              events={}; target_cov=[]; shard_reports=[]
+              for shard,d in dirs:
+                  vp=d/'VALIDATION.json'
+                  if not vp.exists():
+                      failures.append({'code':'MISSING_SHARD_VALIDATION','target':target,'shard':shard}); continue
+                  vr=json.loads(vp.read_text())
+                  shard_reports.append(vr)
+                  if vr.get('status')!='PASS':
+                      failures.append({'code':'SHARD_NOT_PASS','target':target,'shard':shard,'validation':vr})
+                  if int(vr.get('fixed_head',-1))!=fixed_head or str(vr.get('fixed_head_hash','')).lower()!=fixed_hash:
+                      failures.append({'code':'FIXED_HEAD_MISMATCH','target':target,'shard':shard})
+                  lp=d/'logs.jsonl'
+                  if lp.exists():
+                      for line in lp.read_text().splitlines():
+                          if not line.strip(): continue
+                          row=json.loads(line)
+                          key=(row.get('blockHash'),row.get('transactionHash'),row.get('logIndex'))
+                          if key in events and events[key]!=row:
+                              failures.append({'code':'CONFLICTING_EVENT_DUPLICATE','target':target,'key':key})
+                          events[key]=row
+                  cp=d/'coverage.jsonl'
+                  if cp.exists():
+                      for line in cp.read_text().splitlines():
+                          if line.strip():
+                              row=json.loads(line); row['target']=target; row['shard']=shard
+                              target_cov.append(row); all_coverage.append(row)
+              # Coverage leaves from shards inside fixed head must form 0..fixed_head exactly.
+              leaves=[r for r in target_cov if r.get('source')!='OUTSIDE_FIXED_HEAD' and int(r['from_block'])<=fixed_head]
+              leaves.sort(key=lambda r:(int(r['from_block']),int(r['to_block'])))
+              expected=0
+              for leaf in leaves:
+                  start=int(leaf['from_block']); end=int(leaf['to_block'])
+                  if start!=expected:
+                      failures.append({'code':'AGGREGATE_COVERAGE_GAP_OR_OVERLAP','target':target,'expected':expected,'actual':start})
+                  if leaf.get('status')!='PASS': failures.append({'code':'AGGREGATE_LEAF_NOT_PASS','target':target,'leaf':leaf})
+                  expected=end+1
+              if expected!=fixed_head+1:
+                  failures.append({'code':'AGGREGATE_COVERAGE_END_MISMATCH','target':target,'expected':fixed_head+1,'actual':expected})
+              sorted_events=sorted(events.values(),key=lambda r:(int(r['blockNumber'],16),int(r['logIndex'],16)))
+              gz=out/f'{target}_logs.jsonl.gz'
+              with gzip.open(gz,'wt',encoding='utf-8') as f:
+                  for row in sorted_events: f.write(json.dumps(row,sort_keys=True)+'\n')
+              manifest.append({'target':target,'event_rows':len(sorted_events),'coverage_leaves':len(leaves),'shard_reports':len(shard_reports),'file':gz.name,'bytes':gz.stat().st_size,'sha256':hashlib.sha256(gz.read_bytes()).hexdigest()})
+          # Coverage CSV
+          fields=[]; seen=set()
+          for row in all_coverage:
+              for k in row:
+                  if k not in seen: seen.add(k); fields.append(k)
+          with (out/'coverage.csv').open('w',newline='',encoding='utf-8-sig') as f:
+              w=csv.DictWriter(f,fieldnames=fields or ['empty']); w.writeheader()
+              for row in all_coverage:
+                  w.writerow({k:json.dumps(v,sort_keys=True) if isinstance(v,(dict,list)) else v for k,v in row.items()})
+          report={'status':'PASS' if not failures else 'FAIL','fixed_head':fixed_head,'fixed_head_hash':fixed_hash,'targets':manifest,'failure_count':len(failures),'failures':failures,'production_approved_wallets':0,'decision_use':'CANONICAL_EVENT_HISTORY'}
+          (out/'AGGREGATE_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          (out/'MANIFEST.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Commit immutable aggregate evidence to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="canonical-history/evidence-run-${GITHUB_RUN_ID}"
+          rm -rf "$dest"; mkdir -p "$dest"
+          cp aggregate-history/* "$dest/"
+          git config user.name 'rhc-data-collector'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$dest"
+          git commit -m "data: persist canonical event history run ${GITHUB_RUN_ID}"
+          for attempt in $(seq 1 10); do
+            git fetch origin chatgpt/rhc-canonical-event-history-20260829
+            git rebase origin/chatgpt/rhc-canonical-event-history-20260829
+            if git push origin HEAD:chatgpt/rhc-canonical-event-history-20260829; then break; fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done
+      - name: Enforce final aggregate after preservation
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('aggregate-history/AGGREGATE_VALIDATION.json'))
+          assert d['status']=='PASS',d
+          assert len(d['targets'])==2,d
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-canonical-event-history-aggregate
+          path: aggregate-history/
+          retention-days: 4
+          if-no-files-found: error
+          compression-level: 9
