@@ -1,0 +1,211 @@
+name: RHC canonical Seaport transaction enrichment
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-seaport-tx-enrichment.yml'
+      - 'sale-enrichment/enrich.py'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: rhc-seaport-enrichment-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    outputs:
+      tx_count: ${{ steps.index.outputs.tx_count }}
+      source_run: ${{ steps.index.outputs.source_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-seaport-tx-enrichment-20260829
+          fetch-depth: 0
+      - id: index
+        name: Wait for canonical Seaport history and build immutable transaction index
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_branch='chatgpt/rhc-canonical-event-history-20260829'
+          validation_path=''
+          for attempt in $(seq 1 120); do
+            git fetch origin "$source_branch:refs/remotes/origin/rhc-canonical-source" --force
+            validation_path="$(git ls-tree -r --name-only refs/remotes/origin/rhc-canonical-source | grep '^canonical-history/evidence-run-.*/AGGREGATE_VALIDATION.json$' | sort -V | tail -1 || true)"
+            if [[ -n "$validation_path" ]]; then
+              status="$(git show "refs/remotes/origin/rhc-canonical-source:${validation_path}" | python -c 'import json,sys; print(json.load(sys.stdin).get("status"))')"
+              [[ "$status" == PASS ]] && break
+            fi
+            validation_path=''
+            sleep 120
+          done
+          [[ -n "$validation_path" ]] || { echo 'canonical history unavailable' >&2; exit 1; }
+          source_dir="${validation_path%/AGGREGATE_VALIDATION.json}"
+          source_run="${source_dir##*-}"
+          rm -rf prerequisite-canonical
+          git worktree add --detach prerequisite-canonical refs/remotes/origin/rhc-canonical-source
+          mkdir -p out-sale-index
+          cp "prerequisite-canonical/${source_dir}/seaport_logs.jsonl.gz" out-sale-index/
+          cp "prerequisite-canonical/${source_dir}/AGGREGATE_VALIDATION.json" out-sale-index/SOURCE_VALIDATION.json
+          python - <<'PY'
+          import gzip,hashlib,json,pathlib
+          root=pathlib.Path('out-sale-index')
+          source=json.load(open(root/'SOURCE_VALIDATION.json'))
+          assert source['status']=='PASS',source
+          rows=[]
+          with gzip.open(root/'seaport_logs.jsonl.gz','rt',encoding='utf-8') as f:
+              for line in f:
+                  if line.strip(): rows.append(json.loads(line))
+          unique={}
+          for row in rows:
+              key=(row.get('blockHash'),row.get('transactionHash'),row.get('logIndex'))
+              if key in unique and unique[key]!=row: raise SystemExit(f'conflicting event {key}')
+              unique[key]=row
+          ordered=sorted(unique.values(),key=lambda r:(int(r['blockNumber'],16),int(r['logIndex'],16)))
+          with gzip.open(root/'seaport_transaction_index.jsonl.gz','wt',encoding='utf-8') as f:
+              for row in ordered:f.write(json.dumps(row,sort_keys=True)+'\n')
+          txs={row['transactionHash'] for row in ordered}
+          report={'status':'PASS','source_event_rows':len(ordered),'unique_transactions':len(txs),'source_fixed_head':source['fixed_head'],'source_fixed_head_hash':source['fixed_head_hash'],'source_file_sha256':hashlib.sha256((root/'seaport_logs.jsonl.gz').read_bytes()).hexdigest(),'production_approved_wallets':0,'decision_use':'SEAPORT_TX_INDEX'}
+          (root/'SALE_INDEX_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+          tx_count="$(python -c 'import json;print(json.load(open("out-sale-index/SALE_INDEX_VALIDATION.json"))["unique_transactions"])')"
+          echo "tx_count=${tx_count}" >> "$GITHUB_OUTPUT"
+          echo "source_run=${source_run}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rhc-seaport-transaction-index
+          path: |
+            out-sale-index/seaport_transaction_index.jsonl.gz
+            out-sale-index/SALE_INDEX_VALIDATION.json
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
+
+  enrich:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-seaport-transaction-index
+          path: input-index
+      - name: Enrich exact Seaport transactions and receipts
+        run: |
+          python sale-enrichment/enrich.py \
+            --index input-index/seaport_transaction_index.jsonl.gz \
+            --shard '${{ matrix.shard }}' \
+            --shard-count 64 \
+            --out out-sale-enrichment
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-seaport-enrichment-${{ matrix.shard }}
+          path: out-sale-enrichment/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    if: always()
+    needs: [prepare, enrich]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-seaport-tx-enrichment-20260829
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: rhc-seaport-transaction-index
+          path: input-index
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-seaport-enrichment-*
+          path: downloaded-sales
+          merge-multiple: false
+      - name: Merge all 64 shards and enforce exact transaction coverage
+        shell: bash
+        run: |
+          python - <<'PY'
+          import gzip,hashlib,json,pathlib
+          root=pathlib.Path('downloaded-sales');out=pathlib.Path('aggregate-sale-enrichment');out.mkdir(exist_ok=True)
+          index=json.load(open('input-index/SALE_INDEX_VALIDATION.json'))
+          failures=[];transactions={};manifest=[]
+          for shard in range(64):
+              d=root/f'rhc-seaport-enrichment-{shard}'
+              if not d.exists():failures.append({'code':'MISSING_SHARD','shard':shard});continue
+              vp=d/'VALIDATION.json'
+              if not vp.exists():failures.append({'code':'MISSING_VALIDATION','shard':shard});continue
+              vr=json.loads(vp.read_text())
+              if vr.get('status')!='PASS':failures.append({'code':'SHARD_NOT_PASS','shard':shard,'validation':vr})
+              p=d/'seaport_transactions.jsonl.gz'
+              if not p.exists():failures.append({'code':'MISSING_FILE','shard':shard});continue
+              with gzip.open(p,'rt',encoding='utf-8') as f:
+                  for line in f:
+                      if not line.strip():continue
+                      row=json.loads(line);key=row['transaction_hash']
+                      if key in transactions and transactions[key]!=row:failures.append({'code':'CONFLICTING_DUPLICATE_TX','transaction_hash':key})
+                      transactions[key]=row
+              manifest.append({'shard':shard,'validation_status':vr.get('status'),'selected_transactions':vr.get('selected_transactions'),'enriched_transactions':vr.get('enriched_transactions')})
+          expected=int(index['unique_transactions'])
+          if len(transactions)!=expected:failures.append({'code':'TRANSACTION_COVERAGE_MISMATCH','expected':expected,'actual':len(transactions)})
+          with gzip.open(out/'seaport_transactions.jsonl.gz','wt',encoding='utf-8') as f:
+              for key in sorted(transactions):f.write(json.dumps(transactions[key],sort_keys=True)+'\n')
+          file_info={'path':'seaport_transactions.jsonl.gz','bytes':(out/'seaport_transactions.jsonl.gz').stat().st_size,'sha256':hashlib.sha256((out/'seaport_transactions.jsonl.gz').read_bytes()).hexdigest()}
+          report={'status':'PASS' if not failures else 'FAIL','source_canonical_run':'${{ needs.prepare.outputs.source_run }}','source_event_rows':index['source_event_rows'],'source_unique_transactions':expected,'artifact_count':len(manifest),'enriched_transactions':len(transactions),'failure_count':len(failures),'failures':failures,'file':file_info,'production_approved_wallets':0,'decision_use':'SECONDARY_SALE_ORDER_AND_CASHFLOW_INPUT'}
+          (out/'AGGREGATE_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          (out/'SHARD_MANIFEST.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Commit immutable Seaport enrichment evidence to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="sale-enrichment/evidence-run-${GITHUB_RUN_ID}"
+          rm -rf "$dest";mkdir -p "$dest"
+          cp aggregate-sale-enrichment/* input-index/SALE_INDEX_VALIDATION.json "$dest/"
+          git config user.name 'rhc-data-collector'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$dest"
+          git commit -m "data: persist complete Seaport transaction enrichment run ${GITHUB_RUN_ID}"
+          for attempt in $(seq 1 10);do
+            git fetch origin chatgpt/rhc-seaport-tx-enrichment-20260829
+            git rebase origin/chatgpt/rhc-seaport-tx-enrichment-20260829
+            if git push origin HEAD:chatgpt/rhc-seaport-tx-enrichment-20260829;then break;fi
+            [[ "$attempt" == 10 ]] && exit 1
+            sleep $((attempt*3))
+          done
+      - name: Enforce final aggregate after persistence
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('aggregate-sale-enrichment/AGGREGATE_VALIDATION.json'))
+          assert d['status']=='PASS',d
+          assert d['enriched_transactions']==d['source_unique_transactions'],d
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-seaport-enrichment-aggregate
+          path: aggregate-sale-enrichment/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
