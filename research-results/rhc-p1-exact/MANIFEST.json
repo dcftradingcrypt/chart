@@ -1,0 +1,32 @@
+[
+  {
+    "bytes": 389,
+    "path": "VALIDATION.json",
+    "sha256": "6f5687f2763c7ce11d9584570c1294581caa79d0c6bc6c9172b8255ac8700121"
+  },
+  {
+    "bytes": 23656,
+    "path": "input_p1.json",
+    "sha256": "79a48e34d3e8000ff5ed46ab8f791b9e1be2f1cff06b78b052d44cb0dfc35d88"
+  },
+  {
+    "bytes": 33862,
+    "path": "p1_exact_tx_evidence.csv",
+    "sha256": "5722bed08fb3b6f15091f8a48bd1be414c79ee45410177e5b0d80ae1824ff048"
+  },
+  {
+    "bytes": 10,
+    "path": "p1_rpc_errors.csv",
+    "sha256": "cbf2ec508591df442cf34ebef01c3794bbe2c036cd92e251965c8de3033c9c22"
+  },
+  {
+    "bytes": 24480,
+    "path": "p1_wallet_verification.csv",
+    "sha256": "568d2462c2bedd90da9516072318c953d88e6d45e0fa05765799d21a43cd4563"
+  },
+  {
+    "bytes": 664149,
+    "path": "raw_rpc_evidence.json",
+    "sha256": "33373eec3e97e0b8dd94acb6231f64cefe55e775e1417264afa6d47af728e754"
+  }
+]

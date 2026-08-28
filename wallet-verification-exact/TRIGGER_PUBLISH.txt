@@ -1,0 +1,1 @@
+Run the fixed P1 exact-transaction verifier and publish its evidence to this temporary branch. 2026-08-28T00:00:00Z

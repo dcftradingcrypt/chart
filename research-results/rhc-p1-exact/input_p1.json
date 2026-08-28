@@ -1,0 +1,644 @@
+[
+  {
+    "known_mints": [
+      {
+        "block_number": 46817685,
+        "collection_name": "Robin Club",
+        "contract": "0x797a0889718c30060fc797659328590e86041fbd",
+        "drop_stage_index": 0,
+        "log_index": 50,
+        "minter": "0x02e9f0322620260aeac9110fe167a4d7e907314f",
+        "payer": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "quantity": 1,
+        "timestamp_utc": "2026-08-26T18:56:53Z",
+        "tx_hash": "0x0013db778f8162d0783e4e1fb16830f40cf69343512b8088a477bdb87e6bb897",
+        "unit_mint_price_wei": 170000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "STRICT_V04_PAID_PROJECT_ACTIVITY"
+    ],
+    "wallet": "0x02e9f0322620260aeac9110fe167a4d7e907314f"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46801857,
+        "collection_name": "Robin Club",
+        "contract": "0x797a0889718c30060fc797659328590e86041fbd",
+        "drop_stage_index": 0,
+        "log_index": 10,
+        "minter": "0x1c552cf70d8c34156318d6dad4c6c69c3e956392",
+        "payer": "0x1c552cf70d8c34156318d6dad4c6c69c3e956392",
+        "quantity": 10,
+        "timestamp_utc": "2026-08-26T18:30:16Z",
+        "tx_hash": "0x3f0f43a55c6b227a6997aec39be0f1ea873fa962365d1053d193218ed480e4f9",
+        "unit_mint_price_wei": 170000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "STRICT_V04_PAID_PROJECT_ACTIVITY"
+    ],
+    "wallet": "0x1c552cf70d8c34156318d6dad4c6c69c3e956392"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 45945985,
+        "collection_name": "Robinmilios",
+        "contract": "0x3e47b18177330d031ea6fc81e4b0ca83fc5a85e3",
+        "drop_stage_index": 0,
+        "log_index": 45,
+        "minter": "0x562f6ac10723ef6af9f077a83cf25135fb369612",
+        "payer": "0x562f6ac10723ef6af9f077a83cf25135fb369612",
+        "quantity": 2,
+        "timestamp_utc": "2026-08-25T18:32:01Z",
+        "tx_hash": "0xe6ad7eaaeb48164249f83db770c73e1a494c1032047c63c507251c5c35399c12",
+        "unit_mint_price_wei": 274000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "STRICT_V04_PAID_PROJECT_ACTIVITY"
+    ],
+    "wallet": "0x562f6ac10723ef6af9f077a83cf25135fb369612"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46801956,
+        "collection_name": "Robin Club",
+        "contract": "0x797a0889718c30060fc797659328590e86041fbd",
+        "drop_stage_index": 0,
+        "log_index": 100,
+        "minter": "0x66d7472b717277277bf8ea3b1d07922731d8ea35",
+        "payer": "0x66d7472b717277277bf8ea3b1d07922731d8ea35",
+        "quantity": 1,
+        "timestamp_utc": "2026-08-26T18:30:26Z",
+        "tx_hash": "0x66006b675af42144201034b40ac4c79d61cef0580ac8995dd60155665572551d",
+        "unit_mint_price_wei": 170000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "STRICT_V04_PAID_PROJECT_ACTIVITY"
+    ],
+    "wallet": "0x66d7472b717277277bf8ea3b1d07922731d8ea35"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46029624,
+        "collection_name": "Robinmilios",
+        "contract": "0x3e47b18177330d031ea6fc81e4b0ca83fc5a85e3",
+        "drop_stage_index": 0,
+        "log_index": 7,
+        "minter": "0x745b086f34efd3bfde94612c40f3b03118d0d345",
+        "payer": "0x745b086f34efd3bfde94612c40f3b03118d0d345",
+        "quantity": 4,
+        "timestamp_utc": "2026-08-25T20:52:23Z",
+        "tx_hash": "0x54df9da687a35b1cc26bba6bca2b5a09ad7db6e23b1b9d8d271bffc8ae915623",
+        "unit_mint_price_wei": 274000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "STRICT_V04_PAID_PROJECT_ACTIVITY"
+    ],
+    "wallet": "0x745b086f34efd3bfde94612c40f3b03118d0d345"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 45970266,
+        "collection_name": "Robinmilios",
+        "contract": "0x3e47b18177330d031ea6fc81e4b0ca83fc5a85e3",
+        "drop_stage_index": 0,
+        "log_index": 34,
+        "minter": "0x764611d78dc1a8039a713d33ff614423963ae486",
+        "payer": "0x764611d78dc1a8039a713d33ff614423963ae486",
+        "quantity": 20,
+        "timestamp_utc": "2026-08-25T19:12:43Z",
+        "tx_hash": "0xcc5a45b9858804e6c016584f13e17e08ef1a3d4d2c592203a64f067da653ba75",
+        "unit_mint_price_wei": 274000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "STRICT_V04_PAID_PROJECT_ACTIVITY"
+    ],
+    "wallet": "0x764611d78dc1a8039a713d33ff614423963ae486"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46801921,
+        "collection_name": "Robin Club",
+        "contract": "0x797a0889718c30060fc797659328590e86041fbd",
+        "drop_stage_index": 0,
+        "log_index": 27,
+        "minter": "0x9dade467874b15382e6b7dff96486d7126f41116",
+        "payer": "0x9dade467874b15382e6b7dff96486d7126f41116",
+        "quantity": 1,
+        "timestamp_utc": "2026-08-26T18:30:22Z",
+        "tx_hash": "0x96c0586b5c93239539c8b0eb40a837504c7a73067aa1355130f0cd08dbaf783b",
+        "unit_mint_price_wei": 170000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "STRICT_V04_PAID_PROJECT_ACTIVITY"
+    ],
+    "wallet": "0x9dade467874b15382e6b7dff96486d7126f41116"
+  },
+  {
+    "known_mints": [],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "GUAP_LIVE_ALPHA_SIGNAL",
+      "GUAP_ALPHA_REGISTRY"
+    ],
+    "wallet": "0xa006dcb0bf9714eb9feb7f88c19ebcd20cc44cfa"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 45992147,
+        "collection_name": "Robinmilios",
+        "contract": "0x3e47b18177330d031ea6fc81e4b0ca83fc5a85e3",
+        "drop_stage_index": 0,
+        "log_index": 135,
+        "minter": "0xb475b45d9d56334a86aa4e907ad8573f93fd6cb3",
+        "payer": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "quantity": 1,
+        "timestamp_utc": "2026-08-25T19:49:27Z",
+        "tx_hash": "0xf26a26418a70756e99ef75bd9aa90122d9eafa7c4126b8c51ee566caa925f6b0",
+        "unit_mint_price_wei": 274000000000000
+      },
+      {
+        "block_number": 46042291,
+        "collection_name": "Robinmilios",
+        "contract": "0x3e47b18177330d031ea6fc81e4b0ca83fc5a85e3",
+        "drop_stage_index": 0,
+        "log_index": 56,
+        "minter": "0xb475b45d9d56334a86aa4e907ad8573f93fd6cb3",
+        "payer": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "quantity": 1,
+        "timestamp_utc": "2026-08-25T21:13:39Z",
+        "tx_hash": "0x1c791f750a52b255c0575f9a11693cd885724322e317de961c39199a6a5c6ff7",
+        "unit_mint_price_wei": 274000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "STRICT_V04_PAID_PROJECT_ACTIVITY"
+    ],
+    "wallet": "0xb475b45d9d56334a86aa4e907ad8573f93fd6cb3"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46805648,
+        "collection_name": "PUNKBLOCK",
+        "contract": "0x6beaf68ea622e803b91b03572569b57eef1df647",
+        "drop_stage_index": 0,
+        "log_index": 66,
+        "minter": "0xedb0f2bdf9f5b2d755a1d8a97154b643a15b3c8e",
+        "payer": "0xedb0f2bdf9f5b2d755a1d8a97154b643a15b3c8e",
+        "quantity": 3,
+        "timestamp_utc": "2026-08-26T18:36:41Z",
+        "tx_hash": "0xcacc6375301c1714f301c8a5117344097e03abe0275438cf3cb7a8f1c22f7653",
+        "unit_mint_price_wei": 50000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 9,
+    "verification_reasons": [
+      "GUAP_ALPHA_REGISTRY",
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY"
+    ],
+    "wallet": "0xedb0f2bdf9f5b2d755a1d8a97154b643a15b3c8e"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46803389,
+        "collection_name": "9 LIVES",
+        "contract": "0xc5d4caf5224f252bde80fbe12acbac6b12b34a3b",
+        "drop_stage_index": 0,
+        "log_index": 40,
+        "minter": "0x51e99a26a3b538a4023e0e1af16e97153056a814",
+        "payer": "0x51e99a26a3b538a4023e0e1af16e97153056a814",
+        "quantity": 1,
+        "timestamp_utc": "2026-08-26T18:32:51Z",
+        "tx_hash": "0x8e428f651c1bccca578440f3b5afd9ed5ef8160cd050fd9feb5cb023a7783e5b",
+        "unit_mint_price_wei": 200000000000000
+      }
+    ],
+    "known_sales": [
+      {
+        "buyer": "0x43f38fc6cedbcf5a031ea84679549ec4e855eacc",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "nan",
+        "seller": "0x51e99a26a3b538a4023e0e1af16e97153056a814",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:54:11Z",
+        "token_id": "1752",
+        "tx_hash": "0x99a89fbc3df0a538a41ed4c65252992421a9f4469aa4f976fca68a0b130db6a4"
+      },
+      {
+        "buyer": "0xac5ad29d16dc3fea2200585247991ae896814d39",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "nan",
+        "seller": "0x51e99a26a3b538a4023e0e1af16e97153056a814",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:54:11Z",
+        "token_id": "1750",
+        "tx_hash": "0x99a89fbc3df0a538a41ed4c65252992421a9f4469aa4f976fca68a0b130db6a4"
+      },
+      {
+        "buyer": "0x43f38fc6cedbcf5a031ea84679549ec4e855eacc",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "nan",
+        "seller": "0x51e99a26a3b538a4023e0e1af16e97153056a814",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:54:11Z",
+        "token_id": "1751",
+        "tx_hash": "0x99a89fbc3df0a538a41ed4c65252992421a9f4469aa4f976fca68a0b130db6a4"
+      },
+      {
+        "buyer": "0xac5ad29d16dc3fea2200585247991ae896814d39",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "nan",
+        "seller": "0x51e99a26a3b538a4023e0e1af16e97153056a814",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:54:11Z",
+        "token_id": "1749",
+        "tx_hash": "0x99a89fbc3df0a538a41ed4c65252992421a9f4469aa4f976fca68a0b130db6a4"
+      }
+    ],
+    "priority": "P1",
+    "priority_points": 8,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "MINTGO_CONFIRMED_RECENT_PAID_MINT",
+      "RECENT_SECONDARY_MARKET_ACTIVITY"
+    ],
+    "wallet": "0x51e99a26a3b538a4023e0e1af16e97153056a814"
+  },
+  {
+    "known_mints": [],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 7,
+    "verification_reasons": [
+      "GUAP_ALPHA_REGISTRY",
+      "MULTIPLE_SOURCE_REPORTED_PAID_COLLECTIONS"
+    ],
+    "wallet": "0x121a5da145cd6dbe322d75c514481d2efa188816"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46801994,
+        "collection_name": "PUNKBLOCK",
+        "contract": "0x6beaf68ea622e803b91b03572569b57eef1df647",
+        "drop_stage_index": 2,
+        "log_index": 20,
+        "minter": "0x204a9d05e454619bf713b947c3e87302f4509d3c",
+        "payer": "0x204a9d05e454619bf713b947c3e87302f4509d3c",
+        "quantity": 1,
+        "timestamp_utc": "2026-08-26T18:30:30Z",
+        "tx_hash": "0x53278df4605afbf43b80d2ab88dbb4187e7e496f5759d57754f14f5921271c3c",
+        "unit_mint_price_wei": 0
+      },
+      {
+        "block_number": 46802837,
+        "collection_name": "9 LIVES",
+        "contract": "0xc5d4caf5224f252bde80fbe12acbac6b12b34a3b",
+        "drop_stage_index": 0,
+        "log_index": 35,
+        "minter": "0x204a9d05e454619bf713b947c3e87302f4509d3c",
+        "payer": "0x204a9d05e454619bf713b947c3e87302f4509d3c",
+        "quantity": 3,
+        "timestamp_utc": "2026-08-26T18:31:55Z",
+        "tx_hash": "0x3b584db19fcf6c26e2eaf8adf00b989fbfe7e1c6abea66d6438fc73944aed251",
+        "unit_mint_price_wei": 200000000000000
+      },
+      {
+        "block_number": 46803551,
+        "collection_name": "9 LIVES",
+        "contract": "0xc5d4caf5224f252bde80fbe12acbac6b12b34a3b",
+        "drop_stage_index": 0,
+        "log_index": 32,
+        "minter": "0x204a9d05e454619bf713b947c3e87302f4509d3c",
+        "payer": "0x204a9d05e454619bf713b947c3e87302f4509d3c",
+        "quantity": 2,
+        "timestamp_utc": "2026-08-26T18:33:07Z",
+        "tx_hash": "0xe98e336f2ac0b7f290bb1e5600204eaa40b6ec20808703e4d499c532901ae320",
+        "unit_mint_price_wei": 200000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 7,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "RECENT_SECONDARY_MARKET_ACTIVITY"
+    ],
+    "wallet": "0x204a9d05e454619bf713b947c3e87302f4509d3c"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46803563,
+        "collection_name": "9 LIVES",
+        "contract": "0xc5d4caf5224f252bde80fbe12acbac6b12b34a3b",
+        "drop_stage_index": 0,
+        "log_index": 2,
+        "minter": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "payer": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "quantity": 2,
+        "timestamp_utc": "2026-08-26T18:33:09Z",
+        "tx_hash": "0xa300d7eeb8a24dc20ecaa15631a5c79ea51b1c8319f2054bde92bf6352d21f67",
+        "unit_mint_price_wei": 200000000000000
+      },
+      {
+        "block_number": 46810427,
+        "collection_name": "PUNKBLOCK",
+        "contract": "0x6beaf68ea622e803b91b03572569b57eef1df647",
+        "drop_stage_index": 0,
+        "log_index": 2,
+        "minter": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "payer": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "quantity": 2,
+        "timestamp_utc": "2026-08-26T18:44:43Z",
+        "tx_hash": "0x18fadee84ee44c78ed3cf9d48479a5272960ae1ad8d44ed3a971547635b78df8",
+        "unit_mint_price_wei": 50000000000000
+      }
+    ],
+    "known_sales": [
+      {
+        "buyer": "0x17e27e6651bd3e6272b20cab789fb821aa54a34e",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "8e-05",
+        "seller": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:58:13Z",
+        "token_id": "1796",
+        "tx_hash": "0x0098561274910aa58f30cfea9384bb21bf9712c247a06f95cd3e456e2f74dc0f"
+      },
+      {
+        "buyer": "0x17e27e6651bd3e6272b20cab789fb821aa54a34e",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "8e-05",
+        "seller": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:58:13Z",
+        "token_id": "1793",
+        "tx_hash": "0x0098561274910aa58f30cfea9384bb21bf9712c247a06f95cd3e456e2f74dc0f"
+      },
+      {
+        "buyer": "0x17e27e6651bd3e6272b20cab789fb821aa54a34e",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "8e-05",
+        "seller": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:58:13Z",
+        "token_id": "1795",
+        "tx_hash": "0x0098561274910aa58f30cfea9384bb21bf9712c247a06f95cd3e456e2f74dc0f"
+      },
+      {
+        "buyer": "0x17e27e6651bd3e6272b20cab789fb821aa54a34e",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "8e-05",
+        "seller": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:58:13Z",
+        "token_id": "1794",
+        "tx_hash": "0x0098561274910aa58f30cfea9384bb21bf9712c247a06f95cd3e456e2f74dc0f"
+      },
+      {
+        "buyer": "0x17e27e6651bd3e6272b20cab789fb821aa54a34e",
+        "collection_name": "RELAX BRO",
+        "contract": "0x14ae01dd5edc798752a5db432bf48c619788bc6e",
+        "price_native": "8e-05",
+        "seller": "0x43948bababa753a587fc475ced55c74760b716fc",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:58:13Z",
+        "token_id": "1797",
+        "tx_hash": "0x0098561274910aa58f30cfea9384bb21bf9712c247a06f95cd3e456e2f74dc0f"
+      }
+    ],
+    "priority": "P1",
+    "priority_points": 7,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "RECENT_SECONDARY_MARKET_ACTIVITY"
+    ],
+    "wallet": "0x43948bababa753a587fc475ced55c74760b716fc"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46803770,
+        "collection_name": "9 LIVES",
+        "contract": "0xc5d4caf5224f252bde80fbe12acbac6b12b34a3b",
+        "drop_stage_index": 0,
+        "log_index": 8,
+        "minter": "0x6ee78170825f65a2bd9cf9cda48ce2282496ddba",
+        "payer": "0x6ee78170825f65a2bd9cf9cda48ce2282496ddba",
+        "quantity": 2,
+        "timestamp_utc": "2026-08-26T18:33:30Z",
+        "tx_hash": "0xa7e00281106c4dbbd87e8bdf942c97b9c115d678bf641e87d46905aa166e3a06",
+        "unit_mint_price_wei": 200000000000000
+      }
+    ],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 7,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "RECENT_SECONDARY_MARKET_ACTIVITY"
+    ],
+    "wallet": "0x6ee78170825f65a2bd9cf9cda48ce2282496ddba"
+  },
+  {
+    "known_mints": [],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 7,
+    "verification_reasons": [
+      "GUAP_LIVE_ALPHA_SIGNAL",
+      "GUAP_ALPHA_REGISTRY",
+      "MINTGO_RECENT_FREE_ONLY"
+    ],
+    "wallet": "0x91481f82d8625f7c472c8d666aadf4182fa11ec8"
+  },
+  {
+    "known_mints": [],
+    "known_sales": [],
+    "priority": "P1",
+    "priority_points": 7,
+    "verification_reasons": [
+      "GUAP_ALPHA_REGISTRY",
+      "MULTIPLE_SOURCE_REPORTED_PAID_COLLECTIONS"
+    ],
+    "wallet": "0x961ef2b282bfa761346464f4f3bffa4bf7eea53f"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46784554,
+        "collection_name": "9 LIVES",
+        "contract": "0xc5d4caf5224f252bde80fbe12acbac6b12b34a3b",
+        "drop_stage_index": 1,
+        "log_index": 78,
+        "minter": "0xd04b2aafb1eef38d5004c062adfa46de964602a2",
+        "payer": "0xd04b2aafb1eef38d5004c062adfa46de964602a2",
+        "quantity": 5,
+        "timestamp_utc": "2026-08-26T18:01:09Z",
+        "tx_hash": "0xff1487b7d945726ad0a347e386d4ad8828271fd157533565f3801313bb1f6b76",
+        "unit_mint_price_wei": 200000000000000
+      }
+    ],
+    "known_sales": [
+      {
+        "buyer": "0xfa1649cf93399bbc47ebbb48c0794d0dcc76564a",
+        "collection_name": "Put The Fries In The Hood",
+        "contract": "0x444444447657f90a85c99c00c0780e4e1c40c897",
+        "price_native": "0.0040499",
+        "seller": "0xd04b2aafb1eef38d5004c062adfa46de964602a2",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:51:07Z",
+        "token_id": "735",
+        "tx_hash": "0xa3da267f93f94bce2de847ba96017849edbfb31556403cfde6200fbcf1675f74"
+      },
+      {
+        "buyer": "0xda68216375511374c9f626a6e5a49501d7ba6b2d",
+        "collection_name": "Put The Fries In The Hood",
+        "contract": "0x444444447657f90a85c99c00c0780e4e1c40c897",
+        "price_native": "0.0040499",
+        "seller": "0xd04b2aafb1eef38d5004c062adfa46de964602a2",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:50:23Z",
+        "token_id": "2074",
+        "tx_hash": "0xc6c6ac61e4fc09eb3712c77d9004d22f68260f4917f68092d80a17d2e7726441"
+      },
+      {
+        "buyer": "0xda68216375511374c9f626a6e5a49501d7ba6b2d",
+        "collection_name": "Put The Fries In The Hood",
+        "contract": "0x444444447657f90a85c99c00c0780e4e1c40c897",
+        "price_native": "0.0040499",
+        "seller": "0xd04b2aafb1eef38d5004c062adfa46de964602a2",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:50:23Z",
+        "token_id": "2131",
+        "tx_hash": "0xc6c6ac61e4fc09eb3712c77d9004d22f68260f4917f68092d80a17d2e7726441"
+      },
+      {
+        "buyer": "0xda68216375511374c9f626a6e5a49501d7ba6b2d",
+        "collection_name": "Put The Fries In The Hood",
+        "contract": "0x444444447657f90a85c99c00c0780e4e1c40c897",
+        "price_native": "0.0040499",
+        "seller": "0xd04b2aafb1eef38d5004c062adfa46de964602a2",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:50:23Z",
+        "token_id": "879",
+        "tx_hash": "0xc6c6ac61e4fc09eb3712c77d9004d22f68260f4917f68092d80a17d2e7726441"
+      },
+      {
+        "buyer": "0xda68216375511374c9f626a6e5a49501d7ba6b2d",
+        "collection_name": "Put The Fries In The Hood",
+        "contract": "0x444444447657f90a85c99c00c0780e4e1c40c897",
+        "price_native": "0.0040499",
+        "seller": "0xd04b2aafb1eef38d5004c062adfa46de964602a2",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:50:23Z",
+        "token_id": "1639",
+        "tx_hash": "0xc6c6ac61e4fc09eb3712c77d9004d22f68260f4917f68092d80a17d2e7726441"
+      }
+    ],
+    "priority": "P1",
+    "priority_points": 7,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "RECENT_SECONDARY_MARKET_ACTIVITY"
+    ],
+    "wallet": "0xd04b2aafb1eef38d5004c062adfa46de964602a2"
+  },
+  {
+    "known_mints": [
+      {
+        "block_number": 46803288,
+        "collection_name": "9 LIVES",
+        "contract": "0xc5d4caf5224f252bde80fbe12acbac6b12b34a3b",
+        "drop_stage_index": 0,
+        "log_index": 16,
+        "minter": "0xdc979c981cecf9b1e617357c0bc494e53e0f019d",
+        "payer": "0xdc979c981cecf9b1e617357c0bc494e53e0f019d",
+        "quantity": 1,
+        "timestamp_utc": "2026-08-26T18:32:41Z",
+        "tx_hash": "0xb07a788c7906252d6ee5e131c039ebf07fd9fc8e42aa9d5491500bdeaf15058c",
+        "unit_mint_price_wei": 200000000000000
+      }
+    ],
+    "known_sales": [
+      {
+        "buyer": "0xa42e5373feb4f80ab230b7616d08601d4f11ac07",
+        "collection_name": "g00bs #1726",
+        "contract": "0x4c84c14549c98e33a5fc240417d19aed02948611",
+        "price_native": "nan",
+        "seller": "0xdc979c981cecf9b1e617357c0bc494e53e0f019d",
+        "source_sale_status": "SOURCE_REPORTED_NOT_RECEIPT_VERIFIED",
+        "timestamp_utc": "2026-08-26T18:55:45Z",
+        "token_id": "1726",
+        "tx_hash": "0x6e9ea02c1873272d7e5965a74165b0dc11d9b7a2f9d8f8eda652630a6abdcffc"
+      }
+    ],
+    "priority": "P1",
+    "priority_points": 7,
+    "verification_reasons": [
+      "ONCHAIN_PAID_PRIMARY_ACTIVITY",
+      "RECENT_SECONDARY_MARKET_ACTIVITY"
+    ],
+    "wallet": "0xdc979c981cecf9b1e617357c0bc494e53e0f019d"
+  }
+]
