@@ -1,0 +1,38 @@
+name: RHC canonical artifact inventory
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-canonical-artifact-inventory.yml'
+      - 'canonical-inventory/**'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: rhc-canonical-artifact-inventory-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Inventory all prior canonical artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python canonical-inventory/inventory.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rhc-canonical-artifact-inventory
+          path: out-canonical-inventory/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
