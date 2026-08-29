@@ -1,0 +1,112 @@
+name: Re-run only missing RHC P1 shards
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-rerun-missing-p1.yml'
+      - 'recovered-p1-partial-checkpoint/RECOVERY_REPORT.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-rerun-missing-p1-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      missing_json: ${{ steps.plan.outputs.missing_json }}
+      has_missing: ${{ steps.plan.outputs.has_missing }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          p=Path('recovered-p1-partial-checkpoint/RECOVERY_REPORT.json')
+          if not p.exists():
+              print('missing_json=[]')
+              print('has_missing=false')
+          else:
+              d=json.loads(p.read_text())
+              missing=[k for k,v in d.get('shards',{}).items() if v.get('status')!='RECOVERED_NONEMPTY']
+              print('missing_json='+json.dumps(missing,separators=(',',':')))
+              print('has_missing='+('true' if missing else 'false'))
+          PY
+
+  rerun:
+    needs: plan
+    if: needs.plan.outputs.has_missing == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.missing_json) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Materialize collector and exact missing shard
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          mkdir -p runtime
+          base64 -d wallet-verification/collector.py.gz.b64 | gzip -d > runtime/collector.py
+          base64 -d wallet-verification/wallets.json.gz.b64 | gzip -d > runtime/all_wallets.json
+          python -m py_compile runtime/collector.py
+          python - <<'PY'
+          import json, os
+          rows=json.load(open('runtime/all_wallets.json'))
+          p1=[r for r in rows if r.get('priority')=='P1']
+          groups={'p1a':p1[0:5],'p1b':p1[5:10],'p1c':p1[10:15],'p1d':p1[15:19]}
+          shard=os.environ['SHARD']
+          selected=groups[shard]
+          assert selected and all(r.get('priority')=='P1' for r in selected)
+          json.dump(selected,open('runtime/wallets.json','w'),indent=2)
+          print({'shard':shard,'wallets':len(selected)})
+          PY
+      - name: Collect missing shard once
+        shell: bash
+        run: python runtime/collector.py --wallets runtime/wallets.json --out "out-${{ matrix.shard }}"
+      - name: Fail closed on empty evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import csv,json
+          root=Path('out-${{ matrix.shard }}')
+          files=list(root.rglob('*'))
+          substantive=0
+          for p in files:
+              if p.is_file() and p.suffix.lower()=='.csv':
+                  with p.open(newline='',encoding='utf-8-sig') as f:n=sum(1 for _ in csv.DictReader(f))
+                  if n>0 and any(k in p.name.lower() for k in ('transaction','transfer','receipt','event','evidence','summary','wallet')):substantive+=n
+          report={'shard':'${{ matrix.shard }}','file_count':sum(p.is_file() for p in files),'substantive_rows':substantive,'status':'PASS' if substantive>0 else 'FAIL_EMPTY'}
+          (root/'RERUN_VALIDATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(report)
+          if substantive<=0:raise SystemExit(1)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-wallet-verification-${{ matrix.shard }}-targeted-rerun
+          path: out-${{ matrix.shard }}/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
