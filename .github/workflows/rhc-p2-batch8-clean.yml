@@ -22,6 +22,7 @@ jobs:
       BATCH_INDEX: '0'
       BATCH_SIZE: '8'
       SOURCE_BRANCH: 'chatgpt/rhc-wallet-verification-p2-20260829'
+      RHC_RPC: 'https://rpc.mainnet.chain.robinhood.com'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -73,11 +74,88 @@ jobs:
           Path('out-p2-batch8/BATCH_START.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
           print(json.dumps(meta))
           PY
-      - name: Collect canonical evidence for batch0 only
+      - name: Run legacy collector as supplemental evidence only
+        continue-on-error: true
         shell: bash
         run: python runtime/collector.py --wallets runtime/wallets.json --out out-p2-batch8
-      - name: Build fail-closed checkpoint
-        if: always()
+      - name: Verify all 8 wallets directly against Robinhood RPC Transfer logs
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, time, urllib.error, urllib.request
+          from pathlib import Path
+
+          RPC=os.environ['RHC_RPC']
+          TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+          wallets=json.loads(Path('runtime/wallets.json').read_text())
+          wallets=[x['wallet'].lower() for x in wallets]
+          out=Path('out-p2-batch8')
+
+          def rpc(method, params, attempts=4):
+              payload=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode()
+              last=None
+              for attempt in range(attempts):
+                  req=urllib.request.Request(RPC,data=payload,method='POST',headers={
+                      'content-type':'application/json','accept':'application/json','user-agent':'RHC-P2-Batch8/1.1'})
+                  try:
+                      with urllib.request.urlopen(req,timeout=120) as resp:
+                          body=resp.read(); status=resp.status
+                      data=json.loads(body.decode())
+                      return {'http_status':status, **data}
+                  except urllib.error.HTTPError as exc:
+                      body=exc.read().decode('utf-8','replace')[:2000]
+                      last={'http_status':exc.code,'error':body}
+                      if exc.code in (429,500,502,503,504) and attempt+1<attempts:
+                          time.sleep(min(15,2**attempt)); continue
+                      return last
+                  except Exception as exc:
+                      last={'http_status':0,'error':repr(exc)}
+                      if attempt+1<attempts:
+                          time.sleep(min(15,2**attempt)); continue
+                      return last
+              return last or {'http_status':0,'error':'unknown'}
+
+          def padded(a): return '0x'+'0'*24+a[2:]
+          def nft_only(rows):
+              return [r for r in rows if isinstance(r,dict) and isinstance(r.get('topics'),list) and len(r['topics'])>=4]
+
+          head_resp=rpc('eth_blockNumber',[])
+          if not isinstance(head_resp.get('result'),str):
+              raise SystemExit('eth_blockNumber failed: '+json.dumps(head_resp))
+          head=int(head_resp['result'],16)
+          report={'rpc':RPC,'head_block':head,'wallets':[]}
+
+          for wallet in wallets:
+              topic=padded(wallet)
+              incoming=rpc('eth_getLogs',[{'fromBlock':'0x0','toBlock':hex(head),'topics':[TRANSFER,None,topic]}])
+              outgoing=rpc('eth_getLogs',[{'fromBlock':'0x0','toBlock':hex(head),'topics':[TRANSFER,topic]}])
+              in_ok=isinstance(incoming.get('result'),list)
+              out_ok=isinstance(outgoing.get('result'),list)
+              in_rows=nft_only(incoming.get('result') or []) if in_ok else []
+              out_rows=nft_only(outgoing.get('result') or []) if out_ok else []
+              if not (in_ok and out_ok):
+                  status='RETRIEVAL_FAILED'
+              elif in_rows or out_rows:
+                  status='ACTIVITY_FOUND'
+              else:
+                  status='NO_ACTIVITY_PROVEN'
+              row={
+                  'wallet':wallet,'status':status,
+                  'incoming_nft_transfer_rows':len(in_rows),
+                  'outgoing_nft_transfer_rows':len(out_rows),
+                  'incoming_http_status':incoming.get('http_status'),
+                  'outgoing_http_status':outgoing.get('http_status'),
+                  'incoming_rpc_error':incoming.get('error'),
+                  'outgoing_rpc_error':outgoing.get('error'),
+                  'incoming_sample_tx':[r.get('transactionHash') for r in in_rows[:5]],
+                  'outgoing_sample_tx':[r.get('transactionHash') for r in out_rows[:5]],
+              }
+              report['wallets'].append(row)
+              print(json.dumps(row),flush=True)
+          report['counts']={s:sum(1 for x in report['wallets'] if x['status']==s) for s in ('ACTIVITY_FOUND','NO_ACTIVITY_PROVEN','RETRIEVAL_FAILED')}
+          (out/'DIRECT_RPC_VERIFICATION.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          PY
+      - name: Build batch-only fail-closed checkpoint
         shell: bash
         run: |
           python - <<'PY'
@@ -85,37 +163,29 @@ jobs:
           from pathlib import Path
           out=Path('out-p2-batch8')
           meta=json.loads(Path('runtime/batch_metadata.json').read_text())
+          direct=json.loads((out/'DIRECT_RPC_VERIFICATION.json').read_text())
           expected=set(meta['wallets'])
-          def read_csv(p):
-            if not p.exists(): return []
-            with p.open(newline='', encoding='utf-8-sig') as f: return list(csv.DictReader(f))
-          summary=read_csv(out/'wallet_summary.csv')
-          errors=read_csv(out/'errors.csv')
-          validation={}
-          vp=out/'VALIDATION.json'
-          if vp.exists():
-            try: validation=json.loads(vp.read_text(encoding='utf-8'))
-            except Exception as e: validation={'status':'UNREADABLE','error':repr(e)}
-          seen={str(r.get('wallet','')).lower() for r in summary if r.get('wallet')}
-          missing=sorted(expected-seen); unexpected=sorted(seen-expected)
+          got={x['wallet'] for x in direct['wallets']}
           failures=[]
-          if validation.get('status')!='PASS': failures.append({'code':'UPSTREAM_VALIDATION_NOT_PASS','value':validation.get('status')})
-          if len(summary)!=8: failures.append({'code':'SUMMARY_COUNT_MISMATCH','expected':8,'actual':len(summary)})
-          if errors: failures.append({'code':'COLLECTOR_ERRORS_PRESENT','count':len(errors),'sample':errors[:8]})
-          if missing: failures.append({'code':'MISSING_WALLET_SUMMARIES','wallets':missing})
-          if unexpected: failures.append({'code':'UNEXPECTED_WALLET_SUMMARIES','wallets':unexpected})
+          if got!=expected:
+              failures.append({'code':'DIRECT_RPC_WALLET_SET_MISMATCH','missing':sorted(expected-got),'unexpected':sorted(got-expected)})
+          retrieval_failed=[x['wallet'] for x in direct['wallets'] if x['status']=='RETRIEVAL_FAILED']
+          if retrieval_failed:
+              failures.append({'code':'DIRECT_RPC_RETRIEVAL_FAILED','wallets':retrieval_failed})
           report={
             'status':'PASS' if not failures else 'FAIL',
             'batch_index':0,'batch_size':8,'wallets':meta['wallets'],
-            'summary_rows':len(summary),'collector_error_rows':len(errors),
-            'upstream_validation_status':validation.get('status'),
+            'direct_rpc_counts':direct['counts'],
             'failures':failures,
             'next_batch_index':1 if not failures else 0,
             'next_offset':8 if not failures else 0,
+            'legacy_collector_validation_is_not_a_batch_gate':True,
             'production_approved_wallets':0
           }
-          (out/'BATCH_CHECKPOINT.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+          (out/'BATCH_CHECKPOINT.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
           print(json.dumps(report))
+          if failures:
+              raise SystemExit(1)
           PY
       - name: Preserve immutable inputs
         if: always()
