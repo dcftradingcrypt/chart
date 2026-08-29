@@ -1,0 +1,125 @@
+name: Recover available RHC P1 artifacts fail-closed
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-recover-p1-partial.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-recover-p1-partial-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_RUN_ID: '33167365485'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+      - name: Wait until source run is no longer active
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 120); do
+            status=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" --jq '.status')
+            conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" --jq '.conclusion // ""')
+            echo "source run: status=${status} conclusion=${conclusion}"
+            if [ "$status" = completed ]; then exit 0; fi
+            sleep 15
+          done
+          echo 'Timed out waiting for source run; no collection was re-run.' >&2
+          exit 1
+      - name: Record source jobs and download every available artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf recovered-p1-partial-work
+          mkdir -p recovered-p1-partial-work/download
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/jobs?per_page=100" > recovered-p1-partial-work/source_jobs.json
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts?per_page=100" > recovered-p1-partial-work/source_artifacts.json
+          gh run download "$SOURCE_RUN_ID" -R "$GITHUB_REPOSITORY" -D recovered-p1-partial-work/download || true
+          find recovered-p1-partial-work/download -maxdepth 4 -type f -print | sort
+      - name: Classify recovered and missing shards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import csv, json, hashlib
+          root=Path('recovered-p1-partial-work/download')
+          jobs=json.loads(Path('recovered-p1-partial-work/source_jobs.json').read_text())
+          artifacts=json.loads(Path('recovered-p1-partial-work/source_artifacts.json').read_text())
+          report={
+            'source_run_id':33167365485,
+            'source_jobs':[{'id':j.get('id'),'name':j.get('name'),'status':j.get('status'),'conclusion':j.get('conclusion')} for j in jobs.get('jobs',[])],
+            'source_artifacts':[{'id':a.get('id'),'name':a.get('name'),'size_in_bytes':a.get('size_in_bytes'),'expired':a.get('expired')} for a in artifacts.get('artifacts',[])],
+            'shards':{},
+          }
+          recovered=0
+          for shard in ('p1a','p1b','p1c','p1d'):
+            paths=[p for p in root.rglob('*') if p.is_file() and shard in str(p).lower()]
+            counts={}; substantive=0
+            for p in paths:
+              if p.suffix.lower()=='.csv':
+                try:
+                  with p.open(newline='',encoding='utf-8-sig') as f:n=sum(1 for _ in csv.DictReader(f))
+                  counts[str(p)]=n
+                  if n>0 and any(k in p.name.lower() for k in ('transaction','transfer','receipt','event','evidence','summary','wallet')):substantive+=n
+                except Exception as exc:counts[str(p)]={'error':repr(exc)}
+              elif p.suffix.lower()=='.json':
+                try:
+                  obj=json.loads(p.read_text(encoding='utf-8-sig'))
+                  counts[str(p)]={'json_type':type(obj).__name__}
+                except Exception as exc:counts[str(p)]={'error':repr(exc)}
+            status='RECOVERED_NONEMPTY' if paths and substantive>0 else 'MISSING_OR_EMPTY'
+            if status=='RECOVERED_NONEMPTY':recovered+=1
+            report['shards'][shard]={'status':status,'file_count':len(paths),'substantive_rows':substantive,'row_counts':counts}
+          report['recovered_shards']=recovered
+          report['missing_shards']=4-recovered
+          report['status']='PASS_ALL' if recovered==4 else ('PARTIAL' if recovered>0 else 'FAIL_NONE')
+          Path('recovered-p1-partial-work/RECOVERY_REPORT.json').write_text(json.dumps(report,indent=2,sort_keys=True),encoding='utf-8')
+          print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+      - name: Package and commit recovery checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf recovered-p1-partial recovered-p1-partial-commit
+          mkdir -p recovered-p1-partial recovered-p1-partial-commit
+          cp -a recovered-p1-partial-work/download recovered-p1-partial/source-artifacts
+          cp recovered-p1-partial-work/source_jobs.json recovered-p1-partial-work/source_artifacts.json recovered-p1-partial-work/RECOVERY_REPORT.json recovered-p1-partial/
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          root=Path('recovered-p1-partial')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+            if p.is_file():rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'MANIFEST.json').write_text(json.dumps(rows,indent=2,sort_keys=True),encoding='utf-8')
+          PY
+          tar -czf rhc-p1-partial-recovered.tar.gz recovered-p1-partial
+          split -b 40m -d -a 3 rhc-p1-partial-recovered.tar.gz recovered-p1-partial-commit/rhc-p1-partial-recovered.tar.gz.part-
+          sha256sum rhc-p1-partial-recovered.tar.gz > recovered-p1-partial-commit/SHA256SUMS.txt
+          cp recovered-p1-partial/RECOVERY_REPORT.json recovered-p1-partial/MANIFEST.json recovered-p1-partial-commit/
+          rm -rf recovered-p1-partial-checkpoint
+          mv recovered-p1-partial-commit recovered-p1-partial-checkpoint
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add recovered-p1-partial-checkpoint
+          if git diff --cached --quiet; then
+            echo 'No recovery changes.'
+          else
+            git commit -m 'chore: checkpoint all available P1 artifacts'
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          fi

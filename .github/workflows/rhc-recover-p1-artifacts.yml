@@ -1,0 +1,136 @@
+name: Recover completed RHC P1 artifacts
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-recover-p1-artifacts.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-recover-p1-artifacts-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_RUN_ID: '33167365485'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+      - name: Wait for existing P1 run only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 120); do
+            status=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" --jq '.status')
+            conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" --jq '.conclusion // ""')
+            echo "source run: status=${status} conclusion=${conclusion}"
+            if [ "$status" = completed ]; then
+              test "$conclusion" = success
+              exit 0
+            fi
+            sleep 15
+          done
+          echo 'Timed out waiting for existing run; no collection was re-run.' >&2
+          exit 1
+      - name: Download existing artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf recovered-p1-work
+          mkdir -p recovered-p1-work/download
+          gh run download "$SOURCE_RUN_ID" -R "$GITHUB_REPOSITORY" -D recovered-p1-work/download
+          find recovered-p1-work/download -maxdepth 3 -type f -print | sort
+      - name: Validate P1 shards fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import csv, json, hashlib
+
+          root = Path('recovered-p1-work/download')
+          report = {'source_run_id': 33167365485, 'status': 'PASS', 'shards': {}}
+          for shard in ('p1a','p1b','p1c','p1d'):
+              paths = [p for p in root.rglob('*') if p.is_file() and shard in str(p).lower()]
+              row_counts = {}
+              substantive = 0
+              for p in paths:
+                  if p.suffix.lower() == '.csv':
+                      try:
+                          with p.open(newline='', encoding='utf-8-sig') as f:
+                              n = sum(1 for _ in csv.DictReader(f))
+                          row_counts[str(p)] = n
+                          if n > 0 and any(k in p.name.lower() for k in ('transaction','transfer','receipt','event','evidence','summary','wallet')):
+                              substantive += n
+                      except Exception as exc:
+                          row_counts[str(p)] = {'error': repr(exc)}
+                  elif p.suffix.lower() == '.json':
+                      try:
+                          obj = json.loads(p.read_text(encoding='utf-8-sig'))
+                          row_counts[str(p)] = {'json_type': type(obj).__name__}
+                      except Exception as exc:
+                          row_counts[str(p)] = {'error': repr(exc)}
+              shard_status = 'PASS' if paths and substantive > 0 else 'FAIL_EMPTY_OR_MISSING'
+              if shard_status != 'PASS':
+                  report['status'] = 'FAIL'
+              report['shards'][shard] = {
+                  'status': shard_status,
+                  'file_count': len(paths),
+                  'substantive_rows': substantive,
+                  'row_counts': row_counts,
+              }
+          Path('recovered-p1-work/VALIDATION.json').write_text(json.dumps(report, indent=2, sort_keys=True), encoding='utf-8')
+          print(json.dumps(report, indent=2, sort_keys=True))
+          if report['status'] != 'PASS':
+              raise SystemExit(1)
+          PY
+      - name: Package immutable recovery checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf recovered-p1
+          mkdir -p recovered-p1
+          cp -a recovered-p1-work/download recovered-p1/source-artifacts
+          cp recovered-p1-work/VALIDATION.json recovered-p1/
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          root=Path('recovered-p1')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file():
+                  rows.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (root/'MANIFEST.json').write_text(json.dumps(rows,indent=2,sort_keys=True),encoding='utf-8')
+          PY
+          tar -czf rhc-p1-recovered.tar.gz recovered-p1
+          rm -rf recovered-p1-commit
+          mkdir recovered-p1-commit
+          split -b 40m -d -a 3 rhc-p1-recovered.tar.gz recovered-p1-commit/rhc-p1-recovered.tar.gz.part-
+          sha256sum rhc-p1-recovered.tar.gz > recovered-p1-commit/SHA256SUMS.txt
+          cp recovered-p1/VALIDATION.json recovered-p1/ MANIFEST.json recovered-p1-commit/ 2>/dev/null || true
+      - name: Commit recovery chunks to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -rf recovered-p1-checkpoint
+          mv recovered-p1-commit recovered-p1-checkpoint
+          git add recovered-p1-checkpoint
+          if git diff --cached --quiet; then
+            echo 'No recovery changes.'
+          else
+            git commit -m 'chore: checkpoint recovered P1 verification artifacts'
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          fi

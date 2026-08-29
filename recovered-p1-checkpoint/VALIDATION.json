@@ -1,0 +1,301 @@
+{
+  "shards": {
+    "p1a": {
+      "file_count": 26,
+      "row_counts": {
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/MANIFEST.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/REQUEST_STATS.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/VALIDATION.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/address_nft_transfers.csv": {
+          "error": "Error('field larger than field limit (131072)')"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/address_transactions.csv": 467,
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/errors.csv": 0,
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/known_mint_verification.csv": 6,
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/known_sale_verification.csv": 1,
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/address_0x02e9f0322620260aeac9110fe167a4d7e907314f.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/address_0x1c552cf70d8c34156318d6dad4c6c69c3e956392.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/address_0x562f6ac10723ef6af9f077a83cf25135fb369612.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/address_0x66d7472b717277277bf8ea3b1d07922731d8ea35.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/address_0x745b086f34efd3bfde94612c40f3b03118d0d345.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/tx_0x0013db778f8162d0783e4e1fb16830f40cf69343512b8088a477bdb87e6bb897.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/tx_0x3f0f43a55c6b227a6997aec39be0f1ea873fa962365d1053d193218ed480e4f9.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/tx_0x54df9da687a35b1cc26bba6bca2b5a09ad7db6e23b1b9d8d271bffc8ae915623.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/tx_0x66006b675af42144201034b40ac4c79d61cef0580ac8995dd60155665572551d.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/raw/tx_0xe6ad7eaaeb48164249f83db770c73e1a494c1032047c63c507251c5c35399c12.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/runtime/wallets-all.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/runtime/wallets.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/token_lifecycle_evidence.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1a/wallet_summary.csv": 6
+      },
+      "status": "PASS",
+      "substantive_rows": 473
+    },
+    "p1b": {
+      "file_count": 26,
+      "row_counts": {
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/MANIFEST.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/REQUEST_STATS.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/VALIDATION.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/address_nft_transfers.csv": {
+          "error": "Error('field larger than field limit (131072)')"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/address_transactions.csv": 911,
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/errors.csv": 0,
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/known_mint_verification.csv": 6,
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/known_sale_verification.csv": 1,
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/address_0x764611d78dc1a8039a713d33ff614423963ae486.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/address_0x9dade467874b15382e6b7dff96486d7126f41116.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/address_0xa006dcb0bf9714eb9feb7f88c19ebcd20cc44cfa.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/address_0xb475b45d9d56334a86aa4e907ad8573f93fd6cb3.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/address_0xedb0f2bdf9f5b2d755a1d8a97154b643a15b3c8e.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/tx_0x1c791f750a52b255c0575f9a11693cd885724322e317de961c39199a6a5c6ff7.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/tx_0x96c0586b5c93239539c8b0eb40a837504c7a73067aa1355130f0cd08dbaf783b.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/tx_0xcacc6375301c1714f301c8a5117344097e03abe0275438cf3cb7a8f1c22f7653.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/tx_0xcc5a45b9858804e6c016584f13e17e08ef1a3d4d2c592203a64f067da653ba75.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/raw/tx_0xf26a26418a70756e99ef75bd9aa90122d9eafa7c4126b8c51ee566caa925f6b0.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/runtime/wallets-all.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/runtime/wallets.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/token_lifecycle_evidence.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1b/wallet_summary.csv": 6
+      },
+      "status": "PASS",
+      "substantive_rows": 917
+    },
+    "p1c": {
+      "file_count": 30,
+      "row_counts": {
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/MANIFEST.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/REQUEST_STATS.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/VALIDATION.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/address_nft_transfers.csv": 0,
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/address_transactions.csv": 0,
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/errors.csv": 0,
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/known_mint_verification.csv": 8,
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/known_sale_verification.csv": 10,
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/address_0x121a5da145cd6dbe322d75c514481d2efa188816.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/address_0x204a9d05e454619bf713b947c3e87302f4509d3c.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/address_0x43948bababa753a587fc475ced55c74760b716fc.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/address_0x51e99a26a3b538a4023e0e1af16e97153056a814.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/address_0x6ee78170825f65a2bd9cf9cda48ce2282496ddba.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0x0098561274910aa58f30cfea9384bb21bf9712c247a06f95cd3e456e2f74dc0f.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0x18fadee84ee44c78ed3cf9d48479a5272960ae1ad8d44ed3a971547635b78df8.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0x3b584db19fcf6c26e2eaf8adf00b989fbfe7e1c6abea66d6438fc73944aed251.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0x53278df4605afbf43b80d2ab88dbb4187e7e496f5759d57754f14f5921271c3c.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0x8e428f651c1bccca578440f3b5afd9ed5ef8160cd050fd9feb5cb023a7783e5b.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0x99a89fbc3df0a538a41ed4c65252992421a9f4469aa4f976fca68a0b130db6a4.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0xa300d7eeb8a24dc20ecaa15631a5c79ea51b1c8319f2054bde92bf6352d21f67.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0xa7e00281106c4dbbd87e8bdf942c97b9c115d678bf641e87d46905aa166e3a06.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/raw/tx_0xe98e336f2ac0b7f290bb1e5600204eaa40b6ec20808703e4d499c532901ae320.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/runtime/wallets-all.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/runtime/wallets.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/token_lifecycle_evidence.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1c/wallet_summary.csv": 6
+      },
+      "status": "PASS",
+      "substantive_rows": 6
+    },
+    "p1d": {
+      "file_count": 25,
+      "row_counts": {
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/MANIFEST.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/REQUEST_STATS.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/VALIDATION.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/address_nft_transfers.csv": {
+          "error": "Error('field larger than field limit (131072)')"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/address_transactions.csv": 3910,
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/errors.csv": 0,
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/known_mint_verification.csv": 3,
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/known_sale_verification.csv": 7,
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/address_0x91481f82d8625f7c472c8d666aadf4182fa11ec8.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/address_0x961ef2b282bfa761346464f4f3bffa4bf7eea53f.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/address_0xd04b2aafb1eef38d5004c062adfa46de964602a2.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/address_0xdc979c981cecf9b1e617357c0bc494e53e0f019d.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/tx_0x6e9ea02c1873272d7e5965a74165b0dc11d9b7a2f9d8f8eda652630a6abdcffc.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/tx_0xa3da267f93f94bce2de847ba96017849edbfb31556403cfde6200fbcf1675f74.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/tx_0xb07a788c7906252d6ee5e131c039ebf07fd9fc8e42aa9d5491500bdeaf15058c.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/tx_0xc6c6ac61e4fc09eb3712c77d9004d22f68260f4917f68092d80a17d2e7726441.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/raw/tx_0xff1487b7d945726ad0a347e386d4ad8828271fd157533565f3801313bb1f6b76.json": {
+          "json_type": "dict"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/runtime/wallets-all.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/runtime/wallets.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/token_lifecycle_evidence.json": {
+          "json_type": "list"
+        },
+        "recovered-p1-work/download/rhc-wallet-verification-p1d/wallet_summary.csv": 5
+      },
+      "status": "PASS",
+      "substantive_rows": 3915
+    }
+  },
+  "source_run_id": 33167365485,
+  "status": "PASS"
+}

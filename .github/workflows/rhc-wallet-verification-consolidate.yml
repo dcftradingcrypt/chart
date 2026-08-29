@@ -1,0 +1,73 @@
+name: Consolidate RHC wallet verification P0-P1 artifacts
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-wallet-verification-consolidate.yml'
+      - 'wallet-verification/consolidate_previous_run.py'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-wallet-verification-consolidate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download and audit the previous P0-P1 shard artifacts
+        id: consolidate
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: '33167365485'
+        run: |
+          python wallet-verification/consolidate_previous_run.py
+          echo "exit_code=0" >> "$GITHUB_OUTPUT"
+      - name: Preserve machine-readable checkpoint on the research branch
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f out-p0p1-consolidated/consolidated_status.json
+          cp out-p0p1-consolidated/consolidated_status.json wallet-verification/consolidated_status.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add wallet-verification/consolidated_status.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: record P0-P1 evidence consolidation checkpoint'
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-wallet-verification-p0p1-consolidated
+          path: |
+            out-p0p1-consolidated/
+            rhc-wallet-verification-p0p1-consolidated.zip
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
+      - name: Enforce complete evidence set
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          report=json.load(open('out-p0p1-consolidated/consolidated_status.json',encoding='utf-8'))
+          print(json.dumps(report, indent=2, sort_keys=True))
+          if report.get('status') != 'PASS':
+              raise SystemExit(1)
+          PY

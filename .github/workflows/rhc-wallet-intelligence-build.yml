@@ -1,0 +1,70 @@
+name: Build RHC wallet intelligence datasets
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-wallet-intelligence-build.yml'
+      - 'wallet-intelligence/**'
+      - 'canonical-chain-history/**'
+      - 'nft-population-results/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rhc-wallet-intelligence-build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-wallet-verification-p0p1-20260828
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify upstream evidence is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f canonical-chain-history/VALIDATION.json
+          test -f nft-population-results/VALIDATION.json
+          python - <<'PY'
+          import json
+          for path in ('canonical-chain-history/VALIDATION.json','nft-population-results/VALIDATION.json'):
+              data=json.load(open(path))
+              if data.get('status')!='PASS':
+                  raise SystemExit(f'{path} not PASS: {data}')
+          PY
+      - name: Build project universe, outcomes, Selection Alpha, Execution Alpha, and Copy proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf wallet-intelligence-results
+          python wallet-intelligence/build_dataset.py \
+            --chain-history canonical-chain-history \
+            --nft-population nft-population-results \
+            --out wallet-intelligence-results
+      - name: Commit immutable normalized data release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add wallet-intelligence-results
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: build deterministic Robinhood wallet intelligence datasets'
+            git push origin HEAD:chatgpt/rhc-wallet-verification-p0p1-20260828
+          fi
+          python - <<'PY'
+          import json
+          data=json.load(open('wallet-intelligence-results/VALIDATION.json'))
+          if data['status']!='PASS':
+              raise SystemExit(1)
+          PY

@@ -1,0 +1,199 @@
+name: RHC canonical SeaDrop and Seaport history
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-canonical-chain-history.yml'
+      - 'chain-history/**'
+      - 'chain-history-trigger.txt'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: rhc-canonical-chain-history-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  head:
+    runs-on: ubuntu-latest
+    outputs:
+      head: ${{ steps.capture.outputs.head }}
+    steps:
+      - id: capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, urllib.request
+          payload=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode()
+          request=urllib.request.Request('https://rpc.mainnet.chain.robinhood.com',data=payload,headers={'Content-Type':'application/json','User-Agent':'rhc-head-capture/1.0'})
+          with urllib.request.urlopen(request,timeout=60) as response:
+              data=json.loads(response.read())
+          current=int(data['result'],16)
+          finalized=max(0,current-1000)
+          print(f'head={finalized}')
+          PY
+
+  collect:
+    needs: head
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        event: [seadrop, seaport]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Collect canonical event shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python chain-history/collect_logs.py \
+            --event '${{ matrix.event }}' \
+            --shard '${{ matrix.shard }}' \
+            --shards 64 \
+            --head '${{ needs.head.outputs.head }}' \
+            --out 'out-${{ matrix.event }}-${{ matrix.shard }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-chain-${{ matrix.event }}-${{ matrix.shard }}
+          path: out-${{ matrix.event }}-${{ matrix.shard }}/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    needs: [head, collect]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-wallet-verification-p0p1-20260828
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rhc-chain-*
+          path: downloaded-chain-history
+      - name: Merge shards and enforce exact coverage
+        env:
+          FIXED_HEAD: ${{ needs.head.outputs.head }}
+          COLLECT_RESULT: ${{ needs.collect.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gzip, hashlib, json, os, pathlib, shutil
+
+          head=int(os.environ['FIXED_HEAD'])
+          collect_result=os.environ['COLLECT_RESULT']
+          source=pathlib.Path('downloaded-chain-history')
+          target=pathlib.Path('canonical-chain-history')
+          if target.exists():
+              shutil.rmtree(target)
+          target.mkdir()
+
+          overall={'fixed_head':head,'matrix_result':collect_result,'events':{},'production_approved_wallets':0}
+          global_failures=[]
+          for event in ('seadrop','seaport'):
+              event_dir=target/event
+              event_dir.mkdir()
+              logs={}
+              ranges=[]
+              shard_validations=[]
+              missing=[]
+              for shard in range(64):
+                  d=source/f'rhc-chain-{event}-{shard}'
+                  if not d.exists():
+                      missing.append(shard)
+                      continue
+                  validation_path=d/'validation.json'
+                  coverage_path=d/'coverage.json'
+                  log_path=d/'logs.jsonl.gz'
+                  if not validation_path.exists() or not coverage_path.exists() or not log_path.exists():
+                      missing.append(shard)
+                      continue
+                  validation=json.loads(validation_path.read_text(encoding='utf-8'))
+                  coverage=json.loads(coverage_path.read_text(encoding='utf-8'))
+                  shard_validations.append(validation)
+                  ranges.append((coverage['start'],coverage['end'],shard))
+                  with gzip.open(log_path,'rt',encoding='utf-8') as handle:
+                      for line in handle:
+                          row=json.loads(line)
+                          key=(row.get('blockHash'),row.get('transactionHash'),row.get('logIndex'))
+                          logs[key]=row
+              failures=[]
+              if missing:
+                  failures.append({'code':'MISSING_SHARDS','shards':missing})
+              if any(row.get('status')!='PASS' for row in shard_validations):
+                  failures.append({'code':'SHARD_VALIDATION_FAILED','count':sum(row.get('status')!='PASS' for row in shard_validations)})
+              ranges.sort()
+              expected_start=0
+              for start,end,shard in ranges:
+                  if start!=expected_start:
+                      failures.append({'code':'COVERAGE_GAP_OR_OVERLAP','expected_start':expected_start,'actual_start':start,'shard':shard})
+                  expected_start=end+1
+              if expected_start!=head+1:
+                  failures.append({'code':'HEAD_NOT_COVERED','expected_end':head,'actual_end':expected_start-1})
+
+              ordered=sorted(logs.values(),key=lambda row:(int(row['blockNumber'],16),int(row.get('transactionIndex') or '0x0',16),int(row['logIndex'],16)))
+              out=event_dir/f'{event}_logs.jsonl.gz'
+              with gzip.open(out,'wt',encoding='utf-8',newline='\n') as handle:
+                  for row in ordered:
+                      handle.write(json.dumps(row,ensure_ascii=False,sort_keys=True)+'\n')
+              validation={
+                  'status':'PASS' if not failures else 'FAIL',
+                  'event':event,
+                  'fixed_head':head,
+                  'shards_expected':64,
+                  'shards_found':len(ranges),
+                  'unique_logs':len(ordered),
+                  'failures':failures,
+                  'matrix_result':collect_result,
+              }
+              (event_dir/'VALIDATION.json').write_text(json.dumps(validation,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+              overall['events'][event]=validation
+              global_failures.extend({'event':event,**failure} for failure in failures)
+
+          overall['status']='PASS' if not global_failures and collect_result=='success' else 'FAIL'
+          overall['failures']=global_failures
+          (target/'VALIDATION.json').write_text(json.dumps(overall,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+
+          manifest=[]
+          for p in sorted(target.rglob('*')):
+              if p.is_file():
+                  manifest.append({'path':str(p.relative_to(target)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          (target/'MANIFEST.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+          print(json.dumps(overall,sort_keys=True))
+          PY
+      - name: Commit raw canonical history and validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add canonical-chain-history
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: persist canonical SeaDrop and Seaport histories'
+            git push origin HEAD:chatgpt/rhc-wallet-verification-p0p1-20260828
+          fi
+          python - <<'PY'
+          import json
+          data=json.load(open('canonical-chain-history/VALIDATION.json'))
+          if data['status']!='PASS':
+              raise SystemExit(1)
+          PY

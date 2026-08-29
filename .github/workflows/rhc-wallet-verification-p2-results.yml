@@ -1,0 +1,169 @@
+name: Persist RHC P2 verification results
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-wallet-verification-p2-results.yml'
+      - 'wallet-verification-results-trigger/p2.txt'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: persist-rhc-p2-results-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  persist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/rhc-wallet-verification-p0p1-20260828
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Wait for latest P2 run, download all shards, and validate coverage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_BRANCH: chatgpt/rhc-wallet-verification-p0p1-20260828
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, io, json, os, pathlib, shutil, time, urllib.parse, urllib.request, zipfile
+
+          token=os.environ['GH_TOKEN']
+          repo=os.environ['REPOSITORY']
+          branch=os.environ['SOURCE_BRANCH']
+          root=pathlib.Path('wallet-verification-results/p2')
+          if root.exists():
+              shutil.rmtree(root)
+          raw=root/'raw'
+          raw.mkdir(parents=True)
+
+          def api(path):
+              req=urllib.request.Request(
+                  f'https://api.github.com/repos/{repo}{path}',
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'User-Agent': 'rhc-p2-results-persist/1.0',
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  return r.read()
+
+          deadline=time.time()+9900
+          run=None
+          workflow_path='rhc-wallet-verification-p2.yml'
+          while time.time()<deadline:
+              query=urllib.parse.urlencode({'branch':branch,'event':'pull_request','per_page':20})
+              body=api(f'/actions/workflows/{workflow_path}/runs?{query}')
+              runs=json.loads(body).get('workflow_runs',[])
+              if runs:
+                  run=max(runs,key=lambda row:row['id'])
+                  if run.get('status')=='completed':
+                      break
+              time.sleep(30)
+          if not run or run.get('status')!='completed':
+              raise SystemExit('no completed P2 source run before deadline')
+
+          run_id=run['id']
+          artifacts=json.loads(api(f'/actions/runs/{run_id}/artifacts?per_page=100'))
+          expected={f'rhc-wallet-verification-p2-{i}' for i in range(16)}
+          available={a['name']:a for a in artifacts.get('artifacts',[]) if not a.get('expired')}
+          missing=sorted(expected-set(available))
+          if missing:
+              # Preserve a machine-readable failure record rather than pretending completion.
+              failure={
+                  'status':'FAIL',
+                  'reason':'MISSING_P2_SHARD_ARTIFACTS',
+                  'source_run_id':run_id,
+                  'source_conclusion':run.get('conclusion'),
+                  'missing_artifacts':missing,
+                  'available_artifacts':sorted(available),
+                  'production_approved_wallets':0,
+              }
+              (root/'RUN.json').write_text(json.dumps(failure,indent=2,sort_keys=True),encoding='utf-8')
+              raise SystemExit(json.dumps(failure,sort_keys=True))
+
+          manifest=[]
+          for name in sorted(expected):
+              artifact=available[name]
+              req=urllib.request.Request(
+                  artifact['archive_download_url'],
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'User-Agent': 'rhc-p2-results-persist/1.0',
+                  },
+              )
+              with urllib.request.urlopen(req,timeout=300) as response:
+                  payload=response.read()
+              zpath=raw/f'{name}.zip'
+              zpath.write_bytes(payload)
+              dest=raw/name
+              dest.mkdir()
+              with zipfile.ZipFile(io.BytesIO(payload)) as z:
+                  z.extractall(dest)
+              manifest.append({
+                  'artifact_name':name,
+                  'artifact_id':artifact['id'],
+                  'artifact_digest':artifact.get('digest'),
+                  'zip_bytes':len(payload),
+                  'zip_sha256':hashlib.sha256(payload).hexdigest(),
+                  'extracted_files':sorted(str(p.relative_to(root)) for p in dest.rglob('*') if p.is_file()),
+              })
+
+          inventory=[]
+          for p in sorted(raw.rglob('*')):
+              if p.is_file():
+                  inventory.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          non_zip=[x for x in inventory if not x['path'].endswith('.zip') and x['bytes']>0]
+          if len(non_zip)<16:
+              raise SystemExit(f'insufficient P2 extracted evidence files: {len(non_zip)}')
+
+          run_record={
+              'status':'COLLECTED',
+              'source_run_id':run_id,
+              'source_status':run.get('status'),
+              'source_conclusion':run.get('conclusion'),
+              'source_head_sha':run.get('head_sha'),
+              'source_created_at':run.get('created_at'),
+              'source_updated_at':run.get('updated_at'),
+              'artifact_count':len(manifest),
+              'expected_wallets':212,
+              'production_approved_wallets':0,
+              'decision_use':'CANONICAL_EVIDENCE_RESEARCH_ONLY',
+          }
+          (root/'RUN.json').write_text(json.dumps(run_record,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+          (root/'ARTIFACT_MANIFEST.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+          (root/'FILE_MANIFEST.json').write_text(json.dumps(inventory,ensure_ascii=False,indent=2,sort_keys=True),encoding='utf-8')
+          print(json.dumps(run_record,sort_keys=True))
+          PY
+      - name: Commit immutable P2 result bundle to research branch
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d wallet-verification-results/p2 ]; then
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add wallet-verification-results/p2
+          if git diff --cached --quiet; then
+            echo 'No P2 result changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: persist P2 wallet verification evidence'
+          git push origin HEAD:chatgpt/rhc-wallet-verification-p0p1-20260828
