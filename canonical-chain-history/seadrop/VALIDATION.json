@@ -66,15 +66,15 @@
       ]
     },
     {
-      "actual_end": 3841195,
+      "actual_end": 3841307,
       "code": "HEAD_NOT_COVERED",
-      "expected_end": 49167314
+      "expected_end": 49168748
     }
   ],
-  "fixed_head": 49167314,
+  "fixed_head": 49168748,
   "matrix_result": "cancelled",
   "shards_expected": 64,
   "shards_found": 5,
   "status": "FAIL",
-  "unique_logs": 3987
+  "unique_logs": 3988
 }
