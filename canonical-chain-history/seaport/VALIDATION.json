@@ -73,10 +73,10 @@
     {
       "actual_end": -1,
       "code": "HEAD_NOT_COVERED",
-      "expected_end": 49168748
+      "expected_end": 49170037
     }
   ],
-  "fixed_head": 49168748,
+  "fixed_head": 49170037,
   "matrix_result": "cancelled",
   "shards_expected": 64,
   "shards_found": 0,
