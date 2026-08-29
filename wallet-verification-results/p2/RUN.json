@@ -1,0 +1,26 @@
+{
+  "available_artifacts": [],
+  "missing_artifacts": [
+    "rhc-wallet-verification-p2-0",
+    "rhc-wallet-verification-p2-1",
+    "rhc-wallet-verification-p2-10",
+    "rhc-wallet-verification-p2-11",
+    "rhc-wallet-verification-p2-12",
+    "rhc-wallet-verification-p2-13",
+    "rhc-wallet-verification-p2-14",
+    "rhc-wallet-verification-p2-15",
+    "rhc-wallet-verification-p2-2",
+    "rhc-wallet-verification-p2-3",
+    "rhc-wallet-verification-p2-4",
+    "rhc-wallet-verification-p2-5",
+    "rhc-wallet-verification-p2-6",
+    "rhc-wallet-verification-p2-7",
+    "rhc-wallet-verification-p2-8",
+    "rhc-wallet-verification-p2-9"
+  ],
+  "production_approved_wallets": 0,
+  "reason": "MISSING_P2_SHARD_ARTIFACTS",
+  "source_conclusion": "action_required",
+  "source_run_id": 33256018240,
+  "status": "FAIL"
+}
