@@ -1,0 +1,13 @@
+name: RHC wallet verification P2 (manual only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'The original 212-wallet broad collection is complete. Use gap-only canonical collectors; do not rerun all shards.'

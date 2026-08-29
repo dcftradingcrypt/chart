@@ -1,0 +1,14 @@
+name: RHC wallet verification P0-P1 (disabled on P2 branch)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disabled:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'P0-P1 evidence already collected; disabled on P2-only branch.'

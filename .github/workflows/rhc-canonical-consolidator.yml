@@ -1,0 +1,116 @@
+name: RHC canonical data consolidator
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-canonical-consolidator.yml'
+      - '.github/workflows/rhc-canonical-data-completion.yml'
+      - 'rhc-data-completion/**'
+      - 'wallet-verification/p2_addresses.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: rhc-canonical-data-consolidator-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Wait for matching canonical collection run and download all artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, pathlib, time, urllib.parse, urllib.request, zipfile, io
+
+          token=os.environ['GH_TOKEN']
+          repo=os.environ['REPO']
+          head_sha=os.environ['HEAD_SHA']
+          branch=os.environ['HEAD_BRANCH']
+          headers={
+              'accept':'application/vnd.github+json',
+              'authorization':f'Bearer {token}',
+              'user-agent':'RHC-Canonical-Consolidator/1.0',
+              'x-github-api-version':'2022-11-28',
+          }
+
+          def get_json(url):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req,timeout=90) as response:
+                  return json.loads(response.read())
+
+          run=None
+          for attempt in range(240):
+              url=(f'https://api.github.com/repos/{repo}/actions/workflows/'
+                   f'rhc-canonical-data-completion.yml/runs?event=pull_request&branch='
+                   f'{urllib.parse.quote(branch)}&per_page=30')
+              data=get_json(url)
+              matches=[r for r in data.get('workflow_runs',[]) if r.get('head_sha')==head_sha]
+              if matches:
+                  run=sorted(matches,key=lambda r:r['id'],reverse=True)[0]
+                  print({'run_id':run['id'],'status':run['status'],'conclusion':run.get('conclusion')},flush=True)
+                  if run['status']=='completed':
+                      break
+              time.sleep(30)
+          if not run or run.get('status')!='completed':
+              raise SystemExit('matching canonical collection run did not complete')
+
+          run_id=run['id']
+          artifacts=get_json(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100').get('artifacts',[])
+          required={'rhc-global-seadrop','rhc-global-seaport'} | {f'rhc-canonical-wallet-{i}' for i in range(16)}
+          names={a['name'] for a in artifacts}
+          missing=sorted(required-names)
+          pathlib.Path('downloaded').mkdir(exist_ok=True)
+          pathlib.Path('out-consolidated').mkdir(exist_ok=True)
+          (pathlib.Path('out-consolidated')/'SOURCE_RUN.json').write_text(json.dumps({
+              'run_id':run_id,
+              'head_sha':head_sha,
+              'head_branch':branch,
+              'run_conclusion':run.get('conclusion'),
+              'artifact_count':len(artifacts),
+              'required_artifacts':sorted(required),
+              'missing_artifacts':missing,
+          },indent=2,sort_keys=True))
+          for artifact in artifacts:
+              name=artifact['name']
+              if name not in required:
+                  continue
+              req=urllib.request.Request(artifact['archive_download_url'],headers=headers)
+              with urllib.request.urlopen(req,timeout=300) as response:
+                  payload=response.read()
+              dest=pathlib.Path('downloaded')/name
+              dest.mkdir(parents=True,exist_ok=True)
+              with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                  archive.extractall(dest)
+              print({'artifact':name,'bytes':len(payload),'files':len(list(dest.rglob('*')))},flush=True)
+          if missing:
+              print({'warning':'missing required artifacts','missing':missing},flush=True)
+          PY
+      - name: Consolidate and generate exact remediation queue
+        if: always()
+        shell: bash
+        run: python rhc-data-completion/consolidate.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-canonical-data-consolidated
+          path: out-consolidated/
+          retention-days: 10
+          if-no-files-found: error
+          compression-level: 9
