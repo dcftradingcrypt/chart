@@ -1,0 +1,133 @@
+name: RHC P2 batch8 clean checkpoint
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rhc-p2-batch8-clean.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rhc-p2-batch8-clean-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  batch0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BATCH_INDEX: '0'
+      BATCH_SIZE: '8'
+      SOURCE_BRANCH: 'chatgpt/rhc-wallet-verification-p2-20260829'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch immutable source registry and collector from historical research branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime out-p2-batch8
+          curl --fail --silent --show-error --location --retry 2 \
+            "https://raw.githubusercontent.com/dcftradingcrypt/chart/${SOURCE_BRANCH}/wallet-verification/p2_addresses.txt" \
+            -o runtime/p2_addresses.txt
+          curl --fail --silent --show-error --location --retry 2 \
+            "https://raw.githubusercontent.com/dcftradingcrypt/chart/${SOURCE_BRANCH}/wallet-verification/collector.py.gz.b64" \
+            -o runtime/collector.py.gz.b64
+          base64 -d runtime/collector.py.gz.b64 | gzip -d > runtime/collector.py
+          python -m py_compile runtime/collector.py
+          sha256sum runtime/p2_addresses.txt runtime/collector.py.gz.b64 runtime/collector.py | tee out-p2-batch8/SOURCE_SHA256.txt
+      - name: Materialize exactly 8 wallets
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re, hashlib
+          from pathlib import Path
+          idx=int(os.environ['BATCH_INDEX']); size=int(os.environ['BATCH_SIZE'])
+          all_addr=[x.strip().lower() for x in Path('runtime/p2_addresses.txt').read_text().splitlines() if x.strip()]
+          assert len(all_addr)==212 and len(set(all_addr))==212
+          assert all(re.fullmatch(r'0x[a-f0-9]{40}', x) for x in all_addr)
+          selected=all_addr[idx*size:(idx+1)*size]
+          assert len(selected)==8
+          rows=[{
+            'wallet':a,
+            'priority':'P2',
+            'priority_points':5,
+            'verification_reasons':['FIXED_P2_VERIFICATION_QUEUE','BATCH8_CHECKPOINTED_COLLECTION'],
+            'known_mints':[],
+            'known_sales':[]
+          } for a in selected]
+          Path('runtime/wallets.json').write_text(json.dumps(rows, indent=2), encoding='utf-8')
+          meta={
+            'batch_index':idx,'batch_size':size,'start_offset':idx*size,
+            'end_offset_exclusive':(idx+1)*size,'source_total':len(all_addr),
+            'wallets':selected,
+            'registry_sha256':hashlib.sha256(Path('runtime/p2_addresses.txt').read_bytes()).hexdigest(),
+            'collector_sha256':hashlib.sha256(Path('runtime/collector.py').read_bytes()).hexdigest()
+          }
+          Path('runtime/batch_metadata.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
+          Path('out-p2-batch8/BATCH_START.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
+          print(json.dumps(meta))
+          PY
+      - name: Collect canonical evidence for batch0 only
+        shell: bash
+        run: python runtime/collector.py --wallets runtime/wallets.json --out out-p2-batch8
+      - name: Build fail-closed checkpoint
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
+          out=Path('out-p2-batch8')
+          meta=json.loads(Path('runtime/batch_metadata.json').read_text())
+          expected=set(meta['wallets'])
+          def read_csv(p):
+            if not p.exists(): return []
+            with p.open(newline='', encoding='utf-8-sig') as f: return list(csv.DictReader(f))
+          summary=read_csv(out/'wallet_summary.csv')
+          errors=read_csv(out/'errors.csv')
+          validation={}
+          vp=out/'VALIDATION.json'
+          if vp.exists():
+            try: validation=json.loads(vp.read_text(encoding='utf-8'))
+            except Exception as e: validation={'status':'UNREADABLE','error':repr(e)}
+          seen={str(r.get('wallet','')).lower() for r in summary if r.get('wallet')}
+          missing=sorted(expected-seen); unexpected=sorted(seen-expected)
+          failures=[]
+          if validation.get('status')!='PASS': failures.append({'code':'UPSTREAM_VALIDATION_NOT_PASS','value':validation.get('status')})
+          if len(summary)!=8: failures.append({'code':'SUMMARY_COUNT_MISMATCH','expected':8,'actual':len(summary)})
+          if errors: failures.append({'code':'COLLECTOR_ERRORS_PRESENT','count':len(errors),'sample':errors[:8]})
+          if missing: failures.append({'code':'MISSING_WALLET_SUMMARIES','wallets':missing})
+          if unexpected: failures.append({'code':'UNEXPECTED_WALLET_SUMMARIES','wallets':unexpected})
+          report={
+            'status':'PASS' if not failures else 'FAIL',
+            'batch_index':0,'batch_size':8,'wallets':meta['wallets'],
+            'summary_rows':len(summary),'collector_error_rows':len(errors),
+            'upstream_validation_status':validation.get('status'),
+            'failures':failures,
+            'next_batch_index':1 if not failures else 0,
+            'next_offset':8 if not failures else 0,
+            'production_approved_wallets':0
+          }
+          (out/'BATCH_CHECKPOINT.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+          print(json.dumps(report))
+          PY
+      - name: Preserve immutable inputs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out-p2-batch8/runtime
+          cp runtime/p2_addresses.txt runtime/collector.py.gz.b64 runtime/collector.py runtime/wallets.json runtime/batch_metadata.json out-p2-batch8/runtime/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rhc-p2-batch8-000
+          path: out-p2-batch8/
+          retention-days: 5
+          if-no-files-found: error
+          compression-level: 9
