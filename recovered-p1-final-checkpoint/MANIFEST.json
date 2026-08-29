@@ -1,0 +1,642 @@
+[
+  {
+    "bytes": 18737,
+    "path": "P1_FINAL_VALIDATION.json",
+    "sha256": "b4b459fbcb405c20a91d2bab8d586c5e941de6164a9cffcebae141d86809d658"
+  },
+  {
+    "bytes": 26861,
+    "path": "recovered-p1-partial/MANIFEST.json",
+    "sha256": "7377cadfcb3c3a24b5c7c7c31a0d2ce397c0d83b39da0a7c8bb4117a93fe435f"
+  },
+  {
+    "bytes": 18622,
+    "path": "recovered-p1-partial/RECOVERY_REPORT.json",
+    "sha256": "39cbbfe9bb4ffc6e88e414cd6b51c4645314b1f6ee41c7adea202d347d22849b"
+  },
+  {
+    "bytes": 1910,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/MANIFEST.json",
+    "sha256": "f2619d6c3eb8c3acbfab3590d70a0c293bb79fe14fd8359e4552d082f53192e5"
+  },
+  {
+    "bytes": 20,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/REQUEST_STATS.json",
+    "sha256": "a4275a51b228122eef8c23acdf96eba4992760fe2056dbde620ad785656dd06b"
+  },
+  {
+    "bytes": 511,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/VALIDATION.json",
+    "sha256": "6d95a17d49069acaf6d14226648167b92e1627d5c2853e6148373190075b4fbb"
+  },
+  {
+    "bytes": 35843,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/address_nft_transfers.csv",
+    "sha256": "ae53186b9303d82e35438f5f1a5884ddac6dab81e6d31b980369b344a08e7f94"
+  },
+  {
+    "bytes": 8080,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/address_transactions.csv",
+    "sha256": "d505edf57beb7db9302662154cfb206b3dfbd7b00cf90b708aa19b82251f58cc"
+  },
+  {
+    "bytes": 10,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/errors.csv",
+    "sha256": "cbf2ec508591df442cf34ebef01c3794bbe2c036cd92e251965c8de3033c9c22"
+  },
+  {
+    "bytes": 1189,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/known_mint_verification.csv",
+    "sha256": "05411fa333005d55f36c3c07ce04ada5724707e7e6ddd8be61be2d776cddcb0b"
+  },
+  {
+    "bytes": 2970,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/known_sale_verification.csv",
+    "sha256": "cfb14e728db9088e45e5881992f153d403432af746711d40312d369420e02d76"
+  },
+  {
+    "bytes": 51425,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json",
+    "sha256": "b245d4faeb21d93b2b80f6696a1249ace3ea6f1352e0b316a72c7806f80b3a20"
+  },
+  {
+    "bytes": 58213,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json",
+    "sha256": "f3dde3e00985313b8991fd8579fbb1178a89c2dcb703d3a79ccc5805c0b68a74"
+  },
+  {
+    "bytes": 109016,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json",
+    "sha256": "0d05c47fd0e59c7392a7c6be07ee753ce5a77ecb042a1883c50bc32f318eddbe"
+  },
+  {
+    "bytes": 29826,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/runtime/collector.py",
+    "sha256": "90607617bfe8bfc579c36f8fc0763ccfc0e1323cc0d38ce5181824abc87833b2"
+  },
+  {
+    "bytes": 25062,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/runtime/wallets-all.json",
+    "sha256": "6fcc19e70dae6429e1deff0c33e0cb25f557f33654a31071816e29d1e04667d2"
+  },
+  {
+    "bytes": 1408,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/runtime/wallets.json",
+    "sha256": "9e3234f00ce6ecd4fa290cb1c09954c8861d0fd71fc04196cff9fa4c3b0cbe67"
+  },
+  {
+    "bytes": 3067,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/token_lifecycle_evidence.json",
+    "sha256": "104b3578150a5c8f00e43267fdae89cb41d47c9cc28a99ee7a5449c7f04e4d07"
+  },
+  {
+    "bytes": 1945,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p0/wallet_summary.csv",
+    "sha256": "9be495b7f09d0212db384cc2ecbc97118f43458b81376fbcf616f6605ca74cde"
+  },
+  {
+    "bytes": 3869,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/MANIFEST.json",
+    "sha256": "d1ccb1ed736b96c71811f87aba0bb40e26cb242aeefef5811e0966051b88e2c2"
+  },
+  {
+    "bytes": 90,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/REQUEST_STATS.json",
+    "sha256": "e703dd14921452342b46abe7e83567353e781fe81106cae2c1890976a8241c69"
+  },
+  {
+    "bytes": 514,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/VALIDATION.json",
+    "sha256": "e2f2fab03b6c9691c9fcc8f1c57f14e33e9689b3878568b53033afb5d44d2639"
+  },
+  {
+    "bytes": 2417792,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/address_nft_transfers.csv",
+    "sha256": "65a5f7e0104e09a77e807ca9bf689efa4ea8765aeb47a85429016db81eedb2f4"
+  },
+  {
+    "bytes": 1234263,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/address_transactions.csv",
+    "sha256": "fa68e62f4474d4a197144f81ba3b59ad1b7202d9265ca89f636eabaef7692371"
+  },
+  {
+    "bytes": 10,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/errors.csv",
+    "sha256": "cbf2ec508591df442cf34ebef01c3794bbe2c036cd92e251965c8de3033c9c22"
+  },
+  {
+    "bytes": 5496,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/known_mint_verification.csv",
+    "sha256": "7882ec7184318967c6000738ef0fb746e4a4afec445e1263639527518d9afb67"
+  },
+  {
+    "bytes": 2970,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/known_sale_verification.csv",
+    "sha256": "cfb14e728db9088e45e5881992f153d403432af746711d40312d369420e02d76"
+  },
+  {
+    "bytes": 7440,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/address_0x02e9f0322620260aeac9110fe167a4d7e907314f.json",
+    "sha256": "081312ba156d8bc7ff625f7f8230d47311ba8271de4537727881ffd21e0a83c3"
+  },
+  {
+    "bytes": 1984190,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/address_0x1c552cf70d8c34156318d6dad4c6c69c3e956392.json",
+    "sha256": "053a84fdcb04f058f14522e0972a669f4d3d7c7f7fa101b2c158fdccef3ac771"
+  },
+  {
+    "bytes": 1871287,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/address_0x562f6ac10723ef6af9f077a83cf25135fb369612.json",
+    "sha256": "a5bb6a0a10b670777eb813240c235930521f50b9fb8a969bbd3bbbeb1c547596"
+  },
+  {
+    "bytes": 441122,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/address_0x66d7472b717277277bf8ea3b1d07922731d8ea35.json",
+    "sha256": "91ba17b9e12310c77a151c2574e60bd2f1cfc6b059adf7e6ceb014d1dabe3d02"
+  },
+  {
+    "bytes": 8198,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/address_0x745b086f34efd3bfde94612c40f3b03118d0d345.json",
+    "sha256": "4843ff375fda205e46f0ee39353dbe3772bd4b515f98befea747f9dd4bcd35b5"
+  },
+  {
+    "bytes": 51425,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json",
+    "sha256": "87c1cece544f1dbb85a1658992d18ba41ef8504a116150d94a0c07ec4a3c9146"
+  },
+  {
+    "bytes": 113127,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/tx_0x0013db778f8162d0783e4e1fb16830f40cf69343512b8088a477bdb87e6bb897.json",
+    "sha256": "8f6caed3c822cf590b0d7c39a35d0cd007b5467fbad0fa1d77c07d01c47b07de"
+  },
+  {
+    "bytes": 247676,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/tx_0x3f0f43a55c6b227a6997aec39be0f1ea873fa962365d1053d193218ed480e4f9.json",
+    "sha256": "5830c9b248ffa1d6175874f4a800ecf5238dd1fadbd508ba5a7e3d56d60b0f56"
+  },
+  {
+    "bytes": 172322,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/tx_0x54df9da687a35b1cc26bba6bca2b5a09ad7db6e23b1b9d8d271bffc8ae915623.json",
+    "sha256": "05ad50ab0250e171ff5bc49ecfe4e916e1ba78b0258b02baa18c435d228657e6"
+  },
+  {
+    "bytes": 60162,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/tx_0x66006b675af42144201034b40ac4c79d61cef0580ac8995dd60155665572551d.json",
+    "sha256": "b4e7bdceece8f6be5f60d4b4641a9f108c0c0424d2b730a38a9ca99e08383503"
+  },
+  {
+    "bytes": 58213,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json",
+    "sha256": "940fa751529a5e203dece7a3afe44f82659957ffa97791a0ccd7f68591b43c7f"
+  },
+  {
+    "bytes": 109016,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json",
+    "sha256": "103b611dc341b1103c4e303db44dd66f0fa5eb40d031e6cb0b4e30074f5d5694"
+  },
+  {
+    "bytes": 122891,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/raw/tx_0xe6ad7eaaeb48164249f83db770c73e1a494c1032047c63c507251c5c35399c12.json",
+    "sha256": "98500dc053c4973d5b5b9b4a2e3c5166ebf99061125c635d633ab84bf2d505ca"
+  },
+  {
+    "bytes": 29826,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/runtime/collector.py",
+    "sha256": "90607617bfe8bfc579c36f8fc0763ccfc0e1323cc0d38ce5181824abc87833b2"
+  },
+  {
+    "bytes": 25062,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/runtime/wallets-all.json",
+    "sha256": "6fcc19e70dae6429e1deff0c33e0cb25f557f33654a31071816e29d1e04667d2"
+  },
+  {
+    "bytes": 5571,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/runtime/wallets.json",
+    "sha256": "17bdacac8b682438481af65a87ec7a011a1750d500309e4c3ece687705976f6f"
+  },
+  {
+    "bytes": 29683,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/token_lifecycle_evidence.json",
+    "sha256": "287cbc2e7c1438ca54f1f10978cc6bf2eb23f7343325e417307dd726ee9339d7"
+  },
+  {
+    "bytes": 12469,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1a/wallet_summary.csv",
+    "sha256": "ffb3ce892126856e06dfbed55a6532ceb39b4dfc9ba2033dbe3fa428515619bd"
+  },
+  {
+    "bytes": 3874,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/MANIFEST.json",
+    "sha256": "2af1774bd47f66d449696b4c8616d4ee16dedd53e527ef842412c0c19ae8f2a0"
+  },
+  {
+    "bytes": 57,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/REQUEST_STATS.json",
+    "sha256": "54a04f90ba3506b3217427a669b0bda2809d4badc240b1cbc5e61f0246a16979"
+  },
+  {
+    "bytes": 514,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/VALIDATION.json",
+    "sha256": "b9b9e14b88fc7b41b09c2c9ddbe7e448c07a2246c0f337340f2b3451be78cb70"
+  },
+  {
+    "bytes": 5735191,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/address_nft_transfers.csv",
+    "sha256": "921e293d33b3ce150b68102f0b7ae76013e67a95d975e368464ed717ef176130"
+  },
+  {
+    "bytes": 2219010,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/address_transactions.csv",
+    "sha256": "7ad8d4b89dd33a326e10451ace8424340882a5eab2fb0a919575a30d6f5390dc"
+  },
+  {
+    "bytes": 10,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/errors.csv",
+    "sha256": "cbf2ec508591df442cf34ebef01c3794bbe2c036cd92e251965c8de3033c9c22"
+  },
+  {
+    "bytes": 5559,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/known_mint_verification.csv",
+    "sha256": "32b03c7e6079563cd35a9949be7af92e4c6483b4d0784fff7a8b40aa53470337"
+  },
+  {
+    "bytes": 2970,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/known_sale_verification.csv",
+    "sha256": "cfb14e728db9088e45e5881992f153d403432af746711d40312d369420e02d76"
+  },
+  {
+    "bytes": 1171553,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/address_0x764611d78dc1a8039a713d33ff614423963ae486.json",
+    "sha256": "b996df431efb567d7152a4099d8a9f5d5b254caecc292b1cbbec175a5224e2bc"
+  },
+  {
+    "bytes": 51425,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json",
+    "sha256": "0a797ea1cf58aa935b4bab723f823db650dc2225275897bbe4aa0571056df5c9"
+  },
+  {
+    "bytes": 243777,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/address_0x9dade467874b15382e6b7dff96486d7126f41116.json",
+    "sha256": "1eaa14fe7be5f1098b8c4a11d93a2ab502ec4f2eabd9e3ffb7198c448551b6a3"
+  },
+  {
+    "bytes": 1534986,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/address_0xa006dcb0bf9714eb9feb7f88c19ebcd20cc44cfa.json",
+    "sha256": "a38eb755fd750dcfaf84f1925a5e3232b31c0c868e6187788dcd306281b43b48"
+  },
+  {
+    "bytes": 512870,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/address_0xb475b45d9d56334a86aa4e907ad8573f93fd6cb3.json",
+    "sha256": "1af624ac532967d4ccca42a85224efb6aebfbb069cea256a73c4020c4daae81b"
+  },
+  {
+    "bytes": 5551441,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/address_0xedb0f2bdf9f5b2d755a1d8a97154b643a15b3c8e.json",
+    "sha256": "7d3ecbcad0a4ed9be02f9194ecbce880523688b61d12bbb6a4b1c21f182fb1f2"
+  },
+  {
+    "bytes": 183865,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/tx_0x1c791f750a52b255c0575f9a11693cd885724322e317de961c39199a6a5c6ff7.json",
+    "sha256": "6660e628b6063b924da2f6f2b739ddd808df98ff24703cc503f4a8715113c87f"
+  },
+  {
+    "bytes": 58213,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json",
+    "sha256": "e7671de8df81f6dc05665ecf19416ddb9ede1edc847a93050c6827d65af0b59c"
+  },
+  {
+    "bytes": 109016,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json",
+    "sha256": "606210d76aef1df7db5cd138747b774fccbebf9cf19d917a9c91d44150829bb5"
+  },
+  {
+    "bytes": 58465,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/tx_0x96c0586b5c93239539c8b0eb40a837504c7a73067aa1355130f0cd08dbaf783b.json",
+    "sha256": "fef9f99f3e9ddd378facda2f56c90d63fe05152f972965eb9d9fd099b937a7f5"
+  },
+  {
+    "bytes": 110390,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/tx_0xcacc6375301c1714f301c8a5117344097e03abe0275438cf3cb7a8f1c22f7653.json",
+    "sha256": "bd4cd3ebd618f77abd2d88b9ac801ba7c3b88252e5bca0dff3bc6a7b7c5effb5"
+  },
+  {
+    "bytes": 411867,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/tx_0xcc5a45b9858804e6c016584f13e17e08ef1a3d4d2c592203a64f067da653ba75.json",
+    "sha256": "febf5638030129da5d50b28530551d0b923b8761b76ec3d98b853f8cc3cc7959"
+  },
+  {
+    "bytes": 185289,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/raw/tx_0xf26a26418a70756e99ef75bd9aa90122d9eafa7c4126b8c51ee566caa925f6b0.json",
+    "sha256": "8d62ab901088bd317f87dd7b3f3c64fa584aea206793b276badd4ae492151a8c"
+  },
+  {
+    "bytes": 29826,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/runtime/collector.py",
+    "sha256": "90607617bfe8bfc579c36f8fc0763ccfc0e1323cc0d38ce5181824abc87833b2"
+  },
+  {
+    "bytes": 25062,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/runtime/wallets-all.json",
+    "sha256": "6fcc19e70dae6429e1deff0c33e0cb25f557f33654a31071816e29d1e04667d2"
+  },
+  {
+    "bytes": 5534,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/runtime/wallets.json",
+    "sha256": "6e7b535be13c23e6b8bf5b945c0839b0d15a7d330a90e040c110e9fc381c3ac6"
+  },
+  {
+    "bytes": 40604,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/token_lifecycle_evidence.json",
+    "sha256": "88b2f3202c823ee26258fdc2661ecd2156fb81ace2c9bfdbb7dd15421fde4ba0"
+  },
+  {
+    "bytes": 12975,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1b/wallet_summary.csv",
+    "sha256": "2663a1e6742f8513a7cb1aa1657dab0003b3de54f49936703e6a8b58e33ad743"
+  },
+  {
+    "bytes": 4672,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/MANIFEST.json",
+    "sha256": "ef2cf3db264ba5df0e12479179e2ee3dbc72107b853e72f2e2792afda5d83d36"
+  },
+  {
+    "bytes": 57,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/REQUEST_STATS.json",
+    "sha256": "a82e9a211badccf2cff9f51a1e4fea5c9723779b23b2794040daaf75a5655ec4"
+  },
+  {
+    "bytes": 513,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/VALIDATION.json",
+    "sha256": "f059387ed85e61baffa23fc27644062f7d9d01f03b90970338f01e54c245807c"
+  },
+  {
+    "bytes": 10,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/address_nft_transfers.csv",
+    "sha256": "cbf2ec508591df442cf34ebef01c3794bbe2c036cd92e251965c8de3033c9c22"
+  },
+  {
+    "bytes": 10,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/address_transactions.csv",
+    "sha256": "cbf2ec508591df442cf34ebef01c3794bbe2c036cd92e251965c8de3033c9c22"
+  },
+  {
+    "bytes": 10,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/errors.csv",
+    "sha256": "cbf2ec508591df442cf34ebef01c3794bbe2c036cd92e251965c8de3033c9c22"
+  },
+  {
+    "bytes": 7102,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/known_mint_verification.csv",
+    "sha256": "88ea43dbe88ee79ce62da5fdaf7925ccc7494264a688ef307778c6bdf3bcf564"
+  },
+  {
+    "bytes": 139484,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/known_sale_verification.csv",
+    "sha256": "79c798ad775c9677a6c2444bc0af0fa089e7b5f5fa4988d31717458f83a2539e"
+  },
+  {
+    "bytes": 24118,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/address_0x121a5da145cd6dbe322d75c514481d2efa188816.json",
+    "sha256": "ceebfa88105160cbc2af90e77f28483a8c7dd383efe705697558a3d8e86e8192"
+  },
+  {
+    "bytes": 24118,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/address_0x204a9d05e454619bf713b947c3e87302f4509d3c.json",
+    "sha256": "6e97bc670b0912c4ba672315f49e31abec34abb993fad7679c2b2b638b13c488"
+  },
+  {
+    "bytes": 24118,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/address_0x43948bababa753a587fc475ced55c74760b716fc.json",
+    "sha256": "d7a2f80406c42a48a8ce4c0a4ee3f741e5712720967228472930dd6d82f0e7fb"
+  },
+  {
+    "bytes": 24118,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/address_0x51e99a26a3b538a4023e0e1af16e97153056a814.json",
+    "sha256": "914fe9adc1ef8e394c5ad0b2612678054baf6746170b18bc70b48400b644c16d"
+  },
+  {
+    "bytes": 24118,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/address_0x6ee78170825f65a2bd9cf9cda48ce2282496ddba.json",
+    "sha256": "e0eb81fe91c4851321219840249f357b23afcd090cc9f1ccdf9437dd1a62bc78"
+  },
+  {
+    "bytes": 24118,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json",
+    "sha256": "c634acf24d90d1d0da39a329469d23ed3adce89d14d4c578bc7e25f2a3278361"
+  },
+  {
+    "bytes": 133327,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0x0098561274910aa58f30cfea9384bb21bf9712c247a06f95cd3e456e2f74dc0f.json",
+    "sha256": "6491164dbdfc2351c449ffe6e9eadcfd4302b3f274764ef3b0a87749b3f76131"
+  },
+  {
+    "bytes": 61192,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0x18fadee84ee44c78ed3cf9d48479a5272960ae1ad8d44ed3a971547635b78df8.json",
+    "sha256": "542da71d6d12b9f6bdf91b00fb01384be65df484832cfe8ce0c0f1047696f45a"
+  },
+  {
+    "bytes": 63431,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0x3b584db19fcf6c26e2eaf8adf00b989fbfe7e1c6abea66d6438fc73944aed251.json",
+    "sha256": "9610c5735d4e56e2e8e5e62edde8fc1b51fe73ae87ea4648ff96cd9655e68092"
+  },
+  {
+    "bytes": 62186,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0x53278df4605afbf43b80d2ab88dbb4187e7e496f5759d57754f14f5921271c3c.json",
+    "sha256": "3e2bb3f1f04a8434550189c169837cca804ec235c45fd86100c57d82287ed1d7"
+  },
+  {
+    "bytes": 60273,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json",
+    "sha256": "6909fc1f5df15713a08a69415efaa917441c76e52e3f23e73c764d9d3ffca0b1"
+  },
+  {
+    "bytes": 64688,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json",
+    "sha256": "05195edfcd5eb722e422c8195ff0d9ceaebbf7c922fe28af41174c61fa39e5e3"
+  },
+  {
+    "bytes": 60997,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0x8e428f651c1bccca578440f3b5afd9ed5ef8160cd050fd9feb5cb023a7783e5b.json",
+    "sha256": "ce09454d82f7c980168784e5e8a9c8a6790409dccfc6e8e856af9d012768596b"
+  },
+  {
+    "bytes": 103080,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0x99a89fbc3df0a538a41ed4c65252992421a9f4469aa4f976fca68a0b130db6a4.json",
+    "sha256": "11d8f7e49fa718680e74c2066cb0605a62839795c4d86b8e54d5720785315c1f"
+  },
+  {
+    "bytes": 61877,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0xa300d7eeb8a24dc20ecaa15631a5c79ea51b1c8319f2054bde92bf6352d21f67.json",
+    "sha256": "6c7106dc96976a0c166152364f3ef2a83361ae1a37e213b56d8e5bf77b43d43f"
+  },
+  {
+    "bytes": 64462,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0xa7e00281106c4dbbd87e8bdf942c97b9c115d678bf641e87d46905aa166e3a06.json",
+    "sha256": "68aa6c179ef8921e6092fdce206196e799d93de08bd8c150c819829ea305ff47"
+  },
+  {
+    "bytes": 63390,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/raw/tx_0xe98e336f2ac0b7f290bb1e5600204eaa40b6ec20808703e4d499c532901ae320.json",
+    "sha256": "72970c23188ae1153a37cb785c0b78a323b46107567e6910f7de0fd0b9a6573e"
+  },
+  {
+    "bytes": 29826,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/runtime/collector.py",
+    "sha256": "90607617bfe8bfc579c36f8fc0763ccfc0e1323cc0d38ce5181824abc87833b2"
+  },
+  {
+    "bytes": 25062,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/runtime/wallets-all.json",
+    "sha256": "6fcc19e70dae6429e1deff0c33e0cb25f557f33654a31071816e29d1e04667d2"
+  },
+  {
+    "bytes": 11331,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/runtime/wallets.json",
+    "sha256": "98687d49d0c87232b3ac8179e4984ad0560dbad729751989f0a29e5876fca9c8"
+  },
+  {
+    "bytes": 38759,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/token_lifecycle_evidence.json",
+    "sha256": "b5b0c93adfb70b1dd7923ba298ddc787841b6f9268b1601cdfd8b4d162c0d37b"
+  },
+  {
+    "bytes": 141940,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1c/wallet_summary.csv",
+    "sha256": "e5fc306e46b1742cb45a5dc43ea9e726d709c5352935c74fee28ea5ca37d62e0"
+  },
+  {
+    "bytes": 3695,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/MANIFEST.json",
+    "sha256": "c4a307e0167515b7ab3204cde28e0a176073db8b607758de0912f117f257a370"
+  },
+  {
+    "bytes": 90,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/REQUEST_STATS.json",
+    "sha256": "8c1ac3a912ff425020a3ac6cbac88adf459bb55cabcf847a3434f230a3ee45b9"
+  },
+  {
+    "bytes": 517,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/VALIDATION.json",
+    "sha256": "b67144475f2eb36db9577a79691ac4b2f3b7833796f8391956699f51eca3514d"
+  },
+  {
+    "bytes": 33760362,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/address_nft_transfers.csv",
+    "sha256": "3a5740871f132a964618c26829d13e3dcbdfd196d587f38529030d2496eeb7b5"
+  },
+  {
+    "bytes": 5945812,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/address_transactions.csv",
+    "sha256": "852ef01ab6b3c12d9295b7420fd4fb2270536c347826a3817673605a7c34998c"
+  },
+  {
+    "bytes": 10,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/errors.csv",
+    "sha256": "cbf2ec508591df442cf34ebef01c3794bbe2c036cd92e251965c8de3033c9c22"
+  },
+  {
+    "bytes": 2905,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/known_mint_verification.csv",
+    "sha256": "5c128b98d7273de038c8895a3247226b2203d1c9df9438ce406f0c389822c020"
+  },
+  {
+    "bytes": 93642,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/known_sale_verification.csv",
+    "sha256": "3ced4fa2ae06b7aa1b5a4d1ce8d1ada85c4752e56a81776753ec28467fd4f71d"
+  },
+  {
+    "bytes": 51425,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/address_0x76d387388bea6b60ca6d1e97f446f7e26d39d313.json",
+    "sha256": "a8cecee7d97ceae05c99ba8f5d26f54ce9d134cf1a3861df6944726df5689a38"
+  },
+  {
+    "bytes": 13131829,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/address_0x91481f82d8625f7c472c8d666aadf4182fa11ec8.json",
+    "sha256": "a9797cf83cf5650930934c4b8c459a701ead2b2f33c95231e4d7af544648ebc1"
+  },
+  {
+    "bytes": 15144413,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/address_0x961ef2b282bfa761346464f4f3bffa4bf7eea53f.json",
+    "sha256": "5c875db42e50521324947bbed22549971c0c65efc254d13c712c780049bd8071"
+  },
+  {
+    "bytes": 16849774,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/address_0xd04b2aafb1eef38d5004c062adfa46de964602a2.json",
+    "sha256": "349c84bc5c02315340b6715ebd8eaf49f2054703829a1137680f24337f37fd68"
+  },
+  {
+    "bytes": 4384832,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/address_0xdc979c981cecf9b1e617357c0bc494e53e0f019d.json",
+    "sha256": "61f7e1c7b2bf1f09a6972c32bea5017de9b04734ca53706a2542d798c91e1bcb"
+  },
+  {
+    "bytes": 491962,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/tx_0x6e9ea02c1873272d7e5965a74165b0dc11d9b7a2f9d8f8eda652630a6abdcffc.json",
+    "sha256": "bc1d433b35affd3e6a581d7d83319110f69dd47375f975ee0384ca4bbbea57dd"
+  },
+  {
+    "bytes": 58213,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/tx_0x7d02ee071fe595521f1d09671f9b8ad9f0d2d7e1e2bfa017de53d27449cddd23.json",
+    "sha256": "a1dcf77bb5757c3f02c2184f9e26f90c71a30e9f83462710dd97b53683bae8b9"
+  },
+  {
+    "bytes": 109016,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/tx_0x8b9f009dbde5e4b55d3fc47242bf0c6b7094c4b07723dcc2148f23fe71dc1e5b.json",
+    "sha256": "197a1a67624949972b9c329642766a2885f0fd64c615e6585c8f7ce32d24a958"
+  },
+  {
+    "bytes": 424244,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/tx_0xa3da267f93f94bce2de847ba96017849edbfb31556403cfde6200fbcf1675f74.json",
+    "sha256": "26050d13625340f386d80ebffd0550f260241a2eca3405bf230fd489e9ec3966"
+  },
+  {
+    "bytes": 94900,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/tx_0xb07a788c7906252d6ee5e131c039ebf07fd9fc8e42aa9d5491500bdeaf15058c.json",
+    "sha256": "c295d139dfcc4d13d6f1ef60771cd49809b97a9e954b8888d00492fe856d215e"
+  },
+  {
+    "bytes": 1804858,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/tx_0xc6c6ac61e4fc09eb3712c77d9004d22f68260f4917f68092d80a17d2e7726441.json",
+    "sha256": "60b57b85eca29491f6bf68535d04a75129b44e75665c6dc6942a8325649fbe6e"
+  },
+  {
+    "bytes": 235322,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/raw/tx_0xff1487b7d945726ad0a347e386d4ad8828271fd157533565f3801313bb1f6b76.json",
+    "sha256": "adb4ad6886c4c3379e241ca2fc0caf407e4fb199ac1c173ef6f503f3bf4db320"
+  },
+  {
+    "bytes": 29826,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/runtime/collector.py",
+    "sha256": "90607617bfe8bfc579c36f8fc0763ccfc0e1323cc0d38ce5181824abc87833b2"
+  },
+  {
+    "bytes": 25062,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/runtime/wallets-all.json",
+    "sha256": "6fcc19e70dae6429e1deff0c33e0cb25f557f33654a31071816e29d1e04667d2"
+  },
+  {
+    "bytes": 6850,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/runtime/wallets.json",
+    "sha256": "95ea646f013cb99aca77ae4ec8de8692fa4aea1574ba7f796af742c3702a0372"
+  },
+  {
+    "bytes": 26251,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/token_lifecycle_evidence.json",
+    "sha256": "da96a62994da950f9741f9100edcd1952d655ae6515911a721a4ff0ef236bd89"
+  },
+  {
+    "bytes": 10821,
+    "path": "recovered-p1-partial/source-artifacts/rhc-wallet-verification-p1d/wallet_summary.csv",
+    "sha256": "533a06d08b1063673f3a349871c3b084a8f96885c95ef2d7c4c5f6cb689495f1"
+  },
+  {
+    "bytes": 5157,
+    "path": "recovered-p1-partial/source_artifacts.json",
+    "sha256": "915b6053fd546aa1c71fcec206f292c7190f162b418f2ab87959f20142b69813"
+  },
+  {
+    "bytes": 13347,
+    "path": "recovered-p1-partial/source_jobs.json",
+    "sha256": "1238f8b2c5de46e31351f0c4ba4c524d81eb367a8a4df7ff4a2bf0b6ee1d88b8"
+  }
+]
